@@ -87,6 +87,22 @@ sycmcli update install
 sycmcli update config --auto-update true --interval-hours 24
 ```
 
+## Release process
+
+New versions are published through the repository's GitHub Actions workflow using npm Trusted Publishing (OIDC). The release workflow runs checks and tests, updates the version, creates the Git tag and GitHub Release, and publishes to npm without storing a long-lived npm write token.
+
+Use `npm-release-kit` to start a release:
+
+```bash
+# Stable release
+npm-release-kit publish --release patch --tag latest --yes
+
+# Prerelease
+npm-release-kit publish --release prerelease --tag next --yes
+```
+
+The npm registry and intended dist-tag must show the new version before the release is considered complete.
+
 ## License
 
 MIT
