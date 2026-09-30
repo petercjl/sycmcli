@@ -1,10 +1,14 @@
+import { createRequire } from 'node:module';
 import { businessCapabilities, mutationCapabilities } from './business-capabilities.mjs';
 import { listOperations } from './operation-registry.mjs';
 
+const require = createRequire(import.meta.url);
+const packageMetadata = require('../package.json');
+
 export const capabilities = {
   schemaVersion: 1,
-  package: '@petercjl/sycmcli',
-  version: '0.3.0-next.1',
+  package: packageMetadata.name,
+  version: packageMetadata.version,
   safety: {
     authorizationBoundary: 'authorized-reads-and-confirmed-registered-writes',
     browserAuthentication: true,
