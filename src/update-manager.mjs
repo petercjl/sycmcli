@@ -48,6 +48,12 @@ export function compareVersions(left, right) {
   return 0;
 }
 
+export function updateInstallEnv(env = process.env) {
+  const clean = { ...env, SYCMCLI_DISABLE_AUTO_UPDATE: '1' };
+  for (const key of ['NPM_CONFIG_USERCONFIG', 'npm_config_userconfig', 'NPM_CONFIG_PREFIX', 'npm_config_prefix']) delete clean[key];
+  return clean;
+}
+
 async function registryJson(route) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 7000);
@@ -88,7 +94,7 @@ export async function installUpdate(currentVersion, { targetVersion, root = conf
     throw new CliError('UPDATE_METADATA_INVALID', 'npm returned unexpected package metadata; update was stopped.');
   }
   const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const run = childProcess.spawnSync(npmCommand, ['install', '--global', tarball], { encoding: 'utf8', timeout: 120_000, env: { ...process.env, SYCMCLI_DISABLE_AUTO_UPDATE: '1' } });
+  const run = childProcess.spawnSync(npmCommand, ['install', '--global', tarball], { encoding: 'utf8', timeout: 120_000, env: updateInstallEnv() });
   if (run.error || run.status !== 0) {
     throw new CliError('UPDATE_INSTALL_FAILED', 'Automatic update failed.', { details: (run.stderr || run.error?.message || '').trim(), hint: `Run: npm install -g ${PACKAGE_NAME}@${check.latestVersion}` });
   }
