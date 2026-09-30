@@ -41,7 +41,11 @@ jobs:
       - run: npm ci
       - run: npm run check --if-present
       - run: npm test --if-present
+      - name: Configure release author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Publish @petercjl/sycmcli
-        run: npx --yes --package @petercjl/npm-release-kit@0.1.2 npm-release-kit ci publish --release "${{ inputs.release }}" --tag "${{ inputs.tag }}"
+        run: npx --yes --package @petercjl/npm-release-kit@0.1.3 npm-release-kit ci publish --release "${{ inputs.release }}" --tag "${{ inputs.tag }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
