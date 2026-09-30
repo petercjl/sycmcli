@@ -1,6 +1,6 @@
 ---
 name: sycmcli
-description: Use sycmcli to read authorized Shengyicanmou market categories, item rankings, price segments, keyword rankings, and search-word analytics for a user-selected Taobao or Tmall store. Trigger for 生意参谋市场数据、市场排行、搜索词分析、类目榜单、价格带、多店铺取数或导出。
+description: Use sycmcli for authorized Taobao/Tmall business data and analysis across Shengyicanmou, Alimama, DMP, shops, items, categories, competitors, promotion and reports, with guarded plan/apply workflows for registered publishing or modification actions. Trigger for 生意参谋、市场排行、商品/店铺/竞品分析、万相台、达摩盘、营销数据、多店铺取数、报表、发布或修改。
 ---
 
 # sycmcli
@@ -11,40 +11,41 @@ Use the installed `sycmcli` command as the only business-logic runtime. The npm 
 
 1. Run `sycmcli doctor --json` when setup is uncertain.
 2. Resolve the exact store with `sycmcli stores list`. Pass `--store <alias>` whenever the user names a store.
-3. Follow the platform flow below to verify login and collect data.
-4. Resolve an ambiguous category with `category search`.
-5. Run the requested read command. Prefer JSON for analysis; use `--out` only for a requested export.
-6. Check `ok`, identity, returned counts, pagination fields, warnings, and completeness.
-7. Continue with the requested analysis.
+3. Resolve the request with `sycmcli business list` or `business show <id>` when routing is uncertain.
+4. Follow the platform flow below to verify login and collect data.
+5. Use a friendly command when available; otherwise select a packaged operation from `sycmcli data operations` and run it with `data run`. Never construct an unregistered endpoint.
+6. Prefer JSON for analysis; use `--out` only for a requested export. Check identity, counts, pagination, warnings, and completeness.
+7. For a registered external write, create a mutation plan, show the preview and confirmation code to the user, then run `mutation apply` only after the user confirms that exact plan. Execute the returned Agent task in the bound browser and read back the changed object.
 
-## Codex flow
+## Unified browser flow
 
-Codex uses the dedicated ecommerce Chrome at `http://127.0.0.1:9223`.
+Codex and SealSeek use the same sycmcli-managed Google Chrome model. Each store alias owns one persistent Chrome profile and one sycmcli-assigned nonzero local debugging port. Both remain internal implementation details and are isolated per store.
 
-1. Configure the alias once: `sycmcli stores add <alias> --mode attached --cdp-url http://127.0.0.1:9223`.
-2. Run `sycmcli auth status --store <alias>`.
-3. If login is required, open the ecommerce browser, let the user sign in to Shengyicanmou, and retry.
-4. Run the data command normally.
+1. Create the store once: `sycmcli stores add <alias> --display-name "<shop name>"`.
+2. Run `sycmcli auth login --store <alias>`. sycmcli opens or wakes that store's full interactive Chrome so the user can complete login, slider challenges, or other first-party verification.
+3. Let the user complete first-party login or verification, then run `sycmcli auth bind --store <alias>`.
+4. Run every later data or mutation command with the exact `--store <alias>`. sycmcli wakes the same profile automatically.
+5. If the session is logged out, stop and tell the user to finish login in the visible store browser. Retry only after the user confirms completion.
+6. If the live shop identity differs from the bound identity, stop on `STORE_IDENTITY_MISMATCH`; never switch, rebind, or continue implicitly.
 
-## SealSeek flow
+Each managed browser uses the store display name in its Chrome profile and Shengyicanmou page title. Use `sycmcli browser list` to map open windows to aliases and `sycmcli browser focus --store <alias>` to wake and activate one exact window. The list result includes `headless` and `interactive`; user verification requires `headless=false` and `interactive=true`. Use `sycmcli stores label <alias> --display-name "<shop name>"` to label an older store.
 
-SealSeek uses its native persistent browser and browser `evaluate`; it does not require port 9223.
+Managed browsers must also report `webdriver=false`. sycmcli checks this after launch and reports `BROWSER_AUTOMATION_EXPOSED` instead of continuing when Chrome exposes an automation-controlled session. The user still completes every slider, CAPTCHA, or first-party verification manually.
 
-1. If the store does not exist, configure one browser profile per store: `sycmcli stores add <alias> --mode host --platform sealseek --browser-profile <profile>`.
-2. Open `https://sycm.taobao.com/` with that exact SealSeek browser profile. Let the user sign in when needed.
-3. Run the requested data command. A host-mode store returns a browser task directly. If this machine already uses the same alias for Codex CDP, add `--transport host --browser-profile <profile>`; this reuses the identity binding without using port 9223.
-4. Use SealSeek's native browser with the returned profile and URL, then pass the returned `script` unchanged to browser `evaluate`.
-5. Pass the exact JSON evaluate result to the returned completion command on stdin. Add `--out` only when an export was requested.
-6. Parse the normalized completion result. Never execute a host task in a different profile or bind it to a different alias.
+Use `sycmcli browser status --store <alias>` for a read-only runtime check and `sycmcli browser open --store <alias>` to wake the visible browser without running a data request. A dormant browser is normal because its profile persists on disk. Run `sycmcli browser stop --store <alias>` only when the user explicitly asks to close that store browser.
 
-If native browser `evaluate` is unavailable, return `CAPABILITY_UNAVAILABLE`; do not fall back to a guessed Chrome port.
+Legacy `attached` and `host` stores remain readable for migration only. Convert one with `sycmcli stores migrate <alias> --mode managed`, then complete login once in the new managed profile. Do not copy cookies from an Agent-native or shared browser.
 
 ## Safety boundary
 
-- Read-only Shengyicanmou market data only. Do not edit ads, products, accounts, or settings.
-- Authentication remains in the selected browser profile. Never request, print, export, or persist cookies, legality tokens, passwords, or browser storage.
+- Read requests may use only packaged operation IDs. Never accept a caller-supplied URL or copy a token into a shell request.
+- External writes are limited to registered mutation capabilities and require `mutation plan` followed by confirmation of that exact, unexpired plan. Do not treat general approval as approval for a later concrete mutation.
+- After a write, verify the current shop identity and read the changed object back. Report partial or unverified outcomes explicitly.
+- Deletion, refund, cancellation, account, permission, credential, and payment operations are outside this Skill.
+- Authentication remains inside the selected local Chrome profile. Never request, print, export, copy, or persist cookies, legality tokens, passwords, or browser storage outside that profile.
 - Stop on login, verification, risk-control, identity mismatch, or permission errors. The user completes first-party verification visibly.
 - Each alias binds to one verified shop identity. `STORE_IDENTITY_MISMATCH` is a hard stop.
+- Never attempt to automate, bypass, or synthesize a slider, CAPTCHA, risk challenge, or first-party verification. Focus the exact interactive store window and wait for the user.
 - Do not overwrite an export without explicit authorization and `--force`.
 
 ## Command routing
@@ -54,6 +55,11 @@ If native browser `evaluate` is unavailable, return `CAPABILITY_UNAVAILABLE`; do
 - Price bands: `sycmcli price segments`
 - Keyword rankings: `sycmcli keyword rank`
 - Search-word detail: `sycmcli word overview|trend|related|category --keyword <text>`
+- All 37 business abilities: `sycmcli business list` and `sycmcli business show <capability-id>`
+- Registered raw reads: `sycmcli data operations` and `sycmcli data run <operation-id> --params-json <json-or-file>`
+- Deterministic local analysis: `sycmcli analyze run <capability-id> --input-json <json-or-file>`
+- Guarded publishing/modification: `sycmcli mutation plan|show|apply`
+- Store-window identification: `sycmcli stores label`, `sycmcli browser list|focus|status|open`
 - Full inputs and outputs: [references/commands.md](references/commands.md)
 
 ## Pagination and completeness

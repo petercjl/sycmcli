@@ -1,20 +1,13 @@
 # Platform adapters
 
-## Codex
+## Codex and SealSeek
 
-- Run `sycmcli` in the terminal.
-- Use store mode `attached` with `http://127.0.0.1:9223`.
-- Parse JSON stdout and structured JSON stderr.
-- Return absolute, clickable paths for exports.
+- Run the installed `sycmcli` through the Agent's local command surface.
+- Use the default managed store mode. One alias maps to one sycmcli-owned persistent Chrome profile and one bound shop identity.
+- Let sycmcli assign and persist one nonzero loopback port per store. Agents must not choose, remember, or guess a debugging port.
+- Login and risk verification happen visibly in the store-specific Chrome. The Agent stops while user action is required.
+- Use `browser list` to identify every managed window and `browser focus --store <alias>` to activate the requested one. Require `headless=false`, `interactive=true`, and `webdriver=false` before asking the user to complete a slider or risk challenge.
+- Parse JSON stdout and structured JSON stderr. Return absolute, clickable paths for exports.
+- Keep browser credentials inside the profile; only normalized identity and authorized business data enter CLI results.
 
-Status: tested on macOS with category, item-ranking, price, keyword, and related-word reads.
-
-## SealSeek
-
-- Run `sycmcli` through the local shell.
-- Use store mode `host` and one named native browser profile per store.
-- Open Shengyicanmou in that profile, execute the CLI-returned function with native browser `evaluate`, then send its JSON result to `sycmcli host complete`.
-- Keep browser credentials inside SealSeek; only normalized identity and market data cross the adapter boundary.
-- Do not substitute global OpenClaw gateway commands or port 9223 for SealSeek's Agent-native browser.
-
-Status: adapter implemented against the installed OpenClaw native-browser contract. The updater recognizes both POSIX global npm layouts and Windows npm global layouts. Real SealSeek conversation tests on macOS and Windows remain pending user verification.
+Status: managed-profile launch, isolation, fixed-port startup, and manual slider completion were tested on macOS in Codex. Complete authenticated reads from SealSeek and Windows behavior remain pending validation.

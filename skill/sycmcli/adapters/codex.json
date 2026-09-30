@@ -16,12 +16,36 @@
     {
       "capability_id": "browser.session-user-login",
       "status": "tested",
-      "implementation": {"kind": "cli-managed", "capability": "sycmcli store profile and loopback CDP connection"},
-      "features": ["loopback-cdp", "persistent-profile", "visible-user-login", "page-javascript-evaluate", "identity-binding"],
-      "permissions": ["user-selected local Chrome profile", "authorized Shengyicanmou session"],
-      "normalization": "Return only a safe shop identity summary; cookies and legality tokens stay inside Chrome.",
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli per-store Chrome profile with a persistent nonzero loopback port and webdriver self-check"},
+      "features": ["per-store-profile", "on-demand-wake", "persistent-nonzero-loopback-port", "webdriver-self-check", "full-interactive-chrome", "visible-user-login", "visible-store-label", "list-store-windows", "focus-store-window", "page-javascript-evaluate", "identity-binding"],
+      "permissions": ["sycmcli-managed local Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "Return safe store-window metadata and shop identity only; cookies and legality tokens stay inside Chrome.",
       "tested_date": "2026-09-30",
-      "evidence": ["Codex bound the shanju alias to an existing authenticated loopback CDP session and enforced its stable identity."]
+      "evidence": ["Codex launched an existing authorized store profile on its persisted nonzero port, reported Chrome 154 headless=false, interactive=true, and webdriver=false, and the user confirmed slider verification succeeded with the same fixed-port behavior."]
+    },
+    {
+      "capability_id": "business.analysis-local",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli deterministic analysis runner"},
+      "features": ["local-json-input", "deterministic-calculation", "structured-result"],
+      "permissions": ["user-provided or collected local JSON"],
+      "normalization": "Use the shared analyze run JSON contract."
+    },
+    {
+      "capability_id": "browser.registered-data-read",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "registered page requests inside the selected managed Chrome profile"},
+      "features": ["operation-allowlist", "first-party-page", "page-javascript-evaluate", "structured-result"],
+      "permissions": ["selected managed Chrome profile", "registered first-party service page"],
+      "normalization": "The CLI wakes the selected profile, selects the service tab, executes only the packaged operation descriptor, and returns structured JSON."
+    },
+    {
+      "capability_id": "business.mutation-plan-apply",
+      "status": "implemented",
+      "implementation": {"kind": "hybrid", "capability": "sycmcli plan authorization plus registered browser workflow"},
+      "features": ["payload-digest", "short-expiry", "confirmation-code", "identity-binding", "idempotency-key", "audit-log", "post-write-readback"],
+      "permissions": ["exact user-confirmed plan", "bound store browser profile"],
+      "normalization": "Authorize with sycmcli, execute the returned registered workflow in ecommerce Chrome, and read the changed object back. Individual workflows require live validation."
     },
     {
       "capability_id": "workspace.files-export",
