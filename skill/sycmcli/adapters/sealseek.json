@@ -14,8 +14,8 @@
     {
       "capability_id": "browser.session-user-login",
       "status": "implemented",
-      "implementation": {"kind": "cli-managed", "capability": "sycmcli per-store Chrome profile with dynamic loopback endpoint discovery"},
-      "features": ["per-store-profile", "on-demand-wake", "dynamic-loopback-endpoint", "full-interactive-chrome", "visible-user-login", "visible-store-label", "list-store-windows", "focus-store-window", "page-javascript-evaluate", "identity-binding"],
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli per-store Chrome profile with a persistent nonzero loopback port and webdriver self-check"},
+      "features": ["per-store-profile", "on-demand-wake", "persistent-nonzero-loopback-port", "webdriver-self-check", "full-interactive-chrome", "visible-user-login", "visible-store-label", "list-store-windows", "focus-store-window", "page-javascript-evaluate", "identity-binding"],
       "permissions": ["sycmcli-managed local Chrome profile", "authorized Shengyicanmou session"],
       "normalization": "SealSeek invokes sycmcli; the CLI labels, lists, wakes, and focuses the selected full-Chrome profile and returns only safe window metadata, identity, and business data. Profile launch isolation was observed on macOS; authenticated completion remains pending."
     },

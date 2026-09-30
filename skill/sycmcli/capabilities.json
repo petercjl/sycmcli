@@ -4,7 +4,7 @@
   "skill": "sycmcli",
   "target_platforms": ["codex", "sealseek"],
   "normalized_result_fields": ["ok", "store", "identity", "fetchedAt", "data", "export", "error"],
-  "standard_errors": ["CAPABILITY_UNAVAILABLE", "AUTH_REQUIRED", "AUTH_OR_RISK_CHALLENGE", "BROWSER_UNAVAILABLE", "CHROME_PROFILE_INVALID", "STORE_IDENTITY_MISMATCH", "OUTPUT_EXISTS", "SYCM_REQUEST_TIMEOUT", "UPDATE_PREFIX_UNRESOLVED", "UNKNOWN_OPERATION", "PLAN_EXPIRED", "PLAN_TAMPERED", "CONFIRMATION_FAILED"],
+  "standard_errors": ["CAPABILITY_UNAVAILABLE", "AUTH_REQUIRED", "AUTH_OR_RISK_CHALLENGE", "BROWSER_UNAVAILABLE", "BROWSER_AUTOMATION_EXPOSED", "CHROME_PROFILE_INVALID", "STORE_IDENTITY_MISMATCH", "OUTPUT_EXISTS", "SYCM_REQUEST_TIMEOUT", "UPDATE_PREFIX_UNRESOLVED", "UNKNOWN_OPERATION", "PLAN_EXPIRED", "PLAN_TAMPERED", "CONFIRMATION_FAILED"],
   "capabilities": [
     {
       "id": "command.execute",
@@ -19,9 +19,9 @@
       "id": "browser.session-user-login",
       "purpose": "Wake the selected store's dedicated Chrome profile so the user can complete first-party authentication and sycmcli can run authorized page-context reads.",
       "required": true,
-      "required_features": ["per-store-profile", "on-demand-wake", "dynamic-loopback-endpoint", "full-interactive-chrome", "visible-user-login", "visible-store-label", "list-store-windows", "focus-store-window", "page-javascript-evaluate", "identity-binding"],
+      "required_features": ["per-store-profile", "on-demand-wake", "persistent-nonzero-loopback-port", "webdriver-self-check", "full-interactive-chrome", "visible-user-login", "visible-store-label", "list-store-windows", "focus-store-window", "page-javascript-evaluate", "identity-binding"],
       "input_fields": ["store_alias"],
-      "output_fields": ["browser_state", "authenticated", "store_alias", "display_name", "page_title", "focused", "headless", "interactive", "identity"],
+      "output_fields": ["browser_state", "authenticated", "store_alias", "display_name", "page_title", "focused", "headless", "interactive", "webdriver", "identity"],
       "side_effects": {"external_mutation": true, "may_cost_money": false, "authorization": "user-selected-store-session"}
     },
     {

@@ -21,7 +21,7 @@ sycmcli auth login --store my-shop
 sycmcli auth bind --store my-shop
 ```
 
-The browser can be closed normally. Future commands wake the same store profile on demand. Chrome assigns a private ephemeral DevTools port per launch; users and Agents do not configure or reuse a fixed port. sycmcli launches the full interactive Google Chrome, not a headless browser, so login, slider challenges, and other first-party verification remain visible and user-controlled.
+The browser can be closed normally. Future commands wake the same store profile on demand. sycmcli assigns every store a unique persistent nonzero loopback debugging port; users and Agents do not configure it. This avoids Chrome's automation-controlled signal while preserving profile and authentication isolation. sycmcli launches the full interactive Google Chrome, not a headless browser, so login, slider challenges, and other first-party verification remain visible and user-controlled.
 
 Each managed window is labeled with the store display name in its Chrome profile and Shengyicanmou page title. To label an older store or change its visible name:
 
@@ -40,7 +40,7 @@ sycmcli browser stop --store my-shop
 sycmcli doctor --json
 ```
 
-`browser list` maps every configured alias to its visible title, runtime port, page, focus state, and `headless`/`interactive` status. `browser focus` wakes and activates the selected store window.
+`browser list` maps every configured alias to its visible title, assigned port, page, focus state, and `headless`/`interactive`/`webdriver` status. `browser focus` wakes and activates the selected store window. Existing managed stores receive and persist their port automatically on their next browser operation.
 
 Legacy attached or Agent-native stores can be converted with `sycmcli stores migrate <alias> --mode managed`. Login is completed once in the new profile; cookies are not copied from the old browser.
 

@@ -19,7 +19,7 @@ Use the installed `sycmcli` command as the only business-logic runtime. The npm 
 
 ## Unified browser flow
 
-Codex and SealSeek use the same sycmcli-managed Google Chrome model. Each store alias owns one persistent Chrome profile; browser runtime ports are allocated by Chrome and remain an internal implementation detail.
+Codex and SealSeek use the same sycmcli-managed Google Chrome model. Each store alias owns one persistent Chrome profile and one sycmcli-assigned nonzero local debugging port. Both remain internal implementation details and are isolated per store.
 
 1. Create the store once: `sycmcli stores add <alias> --display-name "<shop name>"`.
 2. Run `sycmcli auth login --store <alias>`. sycmcli opens or wakes that store's full interactive Chrome so the user can complete login, slider challenges, or other first-party verification.
@@ -29,6 +29,8 @@ Codex and SealSeek use the same sycmcli-managed Google Chrome model. Each store 
 6. If the live shop identity differs from the bound identity, stop on `STORE_IDENTITY_MISMATCH`; never switch, rebind, or continue implicitly.
 
 Each managed browser uses the store display name in its Chrome profile and Shengyicanmou page title. Use `sycmcli browser list` to map open windows to aliases and `sycmcli browser focus --store <alias>` to wake and activate one exact window. The list result includes `headless` and `interactive`; user verification requires `headless=false` and `interactive=true`. Use `sycmcli stores label <alias> --display-name "<shop name>"` to label an older store.
+
+Managed browsers must also report `webdriver=false`. sycmcli checks this after launch and reports `BROWSER_AUTOMATION_EXPOSED` instead of continuing when Chrome exposes an automation-controlled session. The user still completes every slider, CAPTCHA, or first-party verification manually.
 
 Use `sycmcli browser status --store <alias>` for a read-only runtime check and `sycmcli browser open --store <alias>` to wake the visible browser without running a data request. A dormant browser is normal because its profile persists on disk. Run `sycmcli browser stop --store <alias>` only when the user explicitly asks to close that store browser.
 

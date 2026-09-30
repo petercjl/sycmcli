@@ -89,6 +89,8 @@ export function parseDevToolsActivePort(text) {
 
 export function managedCdpUrl(store) {
   if (!store?.profileDir) return null;
+  const port = Number(store.port);
+  if (Number.isInteger(port) && port >= 1024 && port <= 65535) return `http://127.0.0.1:${port}`;
   try { return parseDevToolsActivePort(fs.readFileSync(path.join(store.profileDir, ACTIVE_PORT_FILE), 'utf8')); } catch { return null; }
 }
 
@@ -166,9 +168,13 @@ async function acquireLaunchLock(store, timeoutMs = 15000) {
 }
 
 export async function ensureBrowser(store, { openLogin = false } = {}) {
+  if (store.mode === 'managed' && !Number.isInteger(Number(store.port))) {
+    throw new CliError('STORE_CONFIG_INVALID', `Managed store "${store.alias}" requires a persistent browser port.`, { hint: 'Run the command through the current sycmcli CLI so the store can be migrated automatically.' });
+  }
   const status = await browserStatus(store);
   if (status.state === 'running') {
     if (openLogin) await ensureSycmPage(status.cdpUrl);
+    await assertBrowserNotAutomated(status.cdpUrl);
     await labelStorePage(status.cdpUrl, store);
     return status.cdpUrl;
   }
@@ -194,7 +200,7 @@ export async function ensureBrowser(store, { openLogin = false } = {}) {
     writeChromeProfileName(store);
     try { fs.unlinkSync(path.join(store.profileDir, ACTIVE_PORT_FILE)); } catch {}
     const child = childProcess.spawn(chromeExecutable(), [
-      '--remote-debugging-port=0',
+      `--remote-debugging-port=${store.port}`,
       `--user-data-dir=${store.profileDir}`,
       '--no-first-run',
       '--no-default-browser-check',
@@ -203,10 +209,26 @@ export async function ensureBrowser(store, { openLogin = false } = {}) {
     child.unref();
     const endpoint = await waitForManagedBrowser(store);
     if (openLogin) await ensureSycmPage(endpoint);
+    await assertBrowserNotAutomated(endpoint);
     await labelStorePage(endpoint, store);
     return endpoint;
   } finally {
     release();
+  }
+}
+
+export async function browserAutomationState(cdpUrl) {
+  const targets = await cdpJson(cdpUrl, '/json/list');
+  const target = targets.find((item) => item.type === 'page' && item.webSocketDebuggerUrl);
+  if (!target) return null;
+  const value = await evaluateTarget(target, 'navigator.webdriver === true', 5000);
+  return value === true;
+}
+
+async function assertBrowserNotAutomated(cdpUrl) {
+  const automated = await browserAutomationState(cdpUrl);
+  if (automated) {
+    throw new CliError('BROWSER_AUTOMATION_EXPOSED', 'Chrome exposed navigator.webdriver=true, which can interfere with first-party login verification.', { hint: 'Close this store browser and reopen it with the current sycmcli version.' });
   }
 }
 
@@ -310,11 +332,12 @@ export async function browserDetails(store) {
   const status = await browserStatus(store);
   const details = {
     alias: store.alias, displayName: storeBrowserLabel(store), mode: store.mode, state: status.state,
-    port: status.cdpUrl ? Number(new URL(status.cdpUrl).port) : null, profileDir: store.profileDir || null,
-    browser: status.browser, headless: status.headless, interactive: status.interactive,
+    port: status.cdpUrl ? Number(new URL(status.cdpUrl).port) : (Number(store.port) || null), profileDir: store.profileDir || null,
+    browser: status.browser, headless: status.headless, interactive: status.interactive, webdriver: null,
     page: null, title: null, focused: null
   };
   if (status.state !== 'running') return details;
+  try { details.webdriver = await browserAutomationState(status.cdpUrl); } catch {}
   const targets = await cdpJson(status.cdpUrl, '/json/list');
   const sycmTarget = targets.find((item) => item.type === 'page' && safePageUrl(item.url)?.startsWith('https://sycm.taobao.com/'));
   const target = sycmTarget || targets.find((item) => item.type === 'page');

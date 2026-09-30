@@ -24,7 +24,7 @@ sycmcli auth login --store my-shop
 sycmcli auth status --store my-shop
 ```
 
-Managed stores always launch full interactive Chrome. `browser list` returns the alias, display name, runtime port, safe page path, visible title, focus state, and `headless`/`interactive` status for every configured store. `browser focus` wakes and activates the exact selected store window. Slider and risk verification remain manual user actions in that visible window.
+Managed stores always launch full interactive Chrome. `browser list` returns the alias, display name, assigned port, safe page path, visible title, focus state, and `headless`/`interactive`/`webdriver` status for every configured store. `browser focus` wakes and activates the exact selected store window. Slider and risk verification remain manual user actions in that visible window.
 
 ## Data commands and result shape
 

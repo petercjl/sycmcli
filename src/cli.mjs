@@ -6,7 +6,7 @@ import { capabilities } from './capabilities.mjs';
 import { runAnalysis } from './analysis-runner.mjs';
 import { businessCapabilities, findBusinessCapability, mutationCapabilities } from './business-capabilities.mjs';
 import { browserDetails, browserIdentity, browserStatus, closeBrowser, ensureBrowser, focusBrowser, isCdpReady, labelStorePage } from './cdp.mjs';
-import { configRoot, currentStore, listStores, managedProfileDir, publicStore, readStore, resolveStore, setCurrentStore, updateStore, writeStore } from './config.mjs';
+import { allocateManagedPort, configRoot, currentStore, ensureManagedPort, listStores, managedProfileDir, publicStore, readStore, resolveStore, setCurrentStore, updateStore, writeStore } from './config.mjs';
 import { CliError, invariant } from './errors.mjs';
 import { writeOutput } from './export.mjs';
 import { buildRegisteredHostScript, readJsonObject, runRegisteredOperation } from './data-runner.mjs';
@@ -64,7 +64,7 @@ function identityMatches(expected, actual) {
 }
 
 async function authenticatedStore(flags, { bind = true } = {}) {
-  const store = resolveStore(flags);
+  const store = ensureManagedPort(resolveStore(flags));
   const cdpUrl = await ensureBrowser(store);
   const identity = await browserIdentity(cdpUrl);
   if (store.identity && !identityMatches(store.identity, identity)) {
@@ -108,7 +108,7 @@ async function handleStores(action, rest, flags) {
     } else {
       const attachedUrl = String(flags['cdp-url'] || 'http://127.0.0.1:9223');
       value = mode === 'managed'
-        ? { mode, profileDir: managedProfileDir(alias, root), displayName: flags['display-name'] ? String(flags['display-name']) : alias, identity: null, createdAt: new Date().toISOString() }
+        ? { mode, port: allocateManagedPort(alias, root), profileDir: managedProfileDir(alias, root), displayName: flags['display-name'] ? String(flags['display-name']) : alias, identity: null, createdAt: new Date().toISOString() }
         : { mode, cdpUrl: attachedUrl, port: Number(new URL(attachedUrl).port || 80), displayName: flags['display-name'] ? String(flags['display-name']) : alias, identity: null, createdAt: new Date().toISOString() };
     }
     const store = writeStore(alias, value, root);
@@ -122,7 +122,7 @@ async function handleStores(action, rest, flags) {
     invariant(String(flags.mode || '') === 'managed', 'INVALID_ARGUMENT', 'stores migrate currently requires --mode managed.', { exitCode: 2 });
     const existing = readStore(alias, configRoot());
     const migrated = updateStore(alias, {
-      mode: 'managed', platform: undefined, browserProfile: undefined, cdpUrl: undefined, port: undefined,
+      mode: 'managed', platform: undefined, browserProfile: undefined, cdpUrl: undefined, port: allocateManagedPort(alias),
       profileDir: existing.profileDir || managedProfileDir(alias), migratedAt: new Date().toISOString()
     });
     return output({ ok: true, store: publicStore(migrated), loginRequired: true, message: 'The store now uses its own managed Chrome profile. Run auth login and complete first-party login once.' });
@@ -161,8 +161,9 @@ async function handleAuth(action, flags) {
     if (action === 'status') return output({ ok: true, store: store.alias, authenticated: Boolean(store.identity), identity: store.identity || null, verification: store.identity ? 'bound-by-last-successful-fetch' : 'run-one-data-command-to-verify' });
   }
   if (action === 'login') {
-    await ensureBrowser(store, { openLogin: true });
-    return output({ ok: true, store: store.alias, browser: { ...(await browserDetails(store)), profileDir: publicStore(store).profileDir || null }, message: 'The full interactive store browser is open. Complete login, slider, or verification there, then run auth bind.' });
+    const prepared = ensureManagedPort(store);
+    await ensureBrowser(prepared, { openLogin: true });
+    return output({ ok: true, store: prepared.alias, browser: { ...(await browserDetails(prepared)), profileDir: publicStore(prepared).profileDir || null }, message: 'The full interactive store browser is open. Complete login, slider, or verification there, then run auth bind.' });
   }
   if (action === 'status' || action === 'bind') {
     const meta = await authenticatedStore(flags);
@@ -184,10 +185,14 @@ async function handleBrowser(action, flags) {
   invariant(store.mode === 'managed', 'INVALID_STORE_MODE', 'Browser lifecycle commands require a managed store.');
   if (action === 'status') return output({ ok: true, store: publicStore(store), browser: { ...(await browserDetails(store)), profileDir: publicStore(store).profileDir || null } });
   if (action === 'open') {
-    await ensureBrowser(store, { openLogin: true });
-    return output({ ok: true, store: publicStore(store), browser: { ...(await browserDetails(store)), profileDir: publicStore(store).profileDir || null }, message: 'The store browser is open in full interactive Chrome. Complete login or slider verification if prompted.' });
+    const prepared = ensureManagedPort(store);
+    await ensureBrowser(prepared, { openLogin: true });
+    return output({ ok: true, store: publicStore(prepared), browser: { ...(await browserDetails(prepared)), profileDir: publicStore(prepared).profileDir || null }, message: 'The store browser is open in full interactive Chrome. Complete login or slider verification if prompted.' });
   }
-  if (action === 'focus') return output({ ok: true, store: publicStore(store), browser: { ...(await focusBrowser(store)), profileDir: publicStore(store).profileDir || null } });
+  if (action === 'focus') {
+    const prepared = ensureManagedPort(store);
+    return output({ ok: true, store: publicStore(prepared), browser: { ...(await focusBrowser(prepared)), profileDir: publicStore(prepared).profileDir || null } });
+  }
   if (action === 'stop') return output({ ok: true, store: publicStore(store), browser: await closeBrowser(store) });
   throw new CliError('UNKNOWN_COMMAND', `Unknown browser command: ${action || ''}`, { exitCode: 2 });
 }
@@ -228,16 +233,18 @@ async function doctor() {
   for (const store of stores) {
     if (store.mode === 'host') checks.push({ id: `browser:${store.alias}`, ok: true, value: `${store.platform}:${store.browserProfile}`, verification: 'agent-runtime-required' });
     else if (store.mode === 'managed') {
-      const status = await browserStatus(store);
+      const details = await browserDetails(store);
       checks.push({
         id: `browser:${store.alias}`,
-        ok: Boolean(store.profileDir) && status.headless !== true,
-        value: status.state,
+        ok: Boolean(store.profileDir) && details.headless !== true && details.webdriver !== true,
+        value: details.state,
+        port: store.port || null,
         profile: publicStore(store).profileDir,
-        browser: status.browser,
-        headless: status.headless,
-        interactive: status.interactive,
-        verification: status.state === 'running' ? 'full-browser-runtime-checked' : 'starts-on-demand'
+        browser: details.browser,
+        headless: details.headless,
+        interactive: details.interactive,
+        webdriver: details.webdriver,
+        verification: details.state === 'running' ? 'full-browser-runtime-checked' : 'starts-on-demand'
       });
     } else checks.push({ id: `browser:${store.alias}`, ok: await isCdpReady(store.cdpUrl), value: store.cdpUrl });
   }

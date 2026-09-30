@@ -4,6 +4,8 @@ import path from 'node:path';
 import { CliError, invariant } from './errors.mjs';
 
 const ALIAS_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
+export const MANAGED_PORT_MIN = 19000;
+export const MANAGED_PORT_MAX = 19999;
 
 export function configRoot(env = process.env, platform = process.platform) {
   if (env.SYCMCLI_HOME) return path.resolve(env.SYCMCLI_HOME);
@@ -23,6 +25,39 @@ export function managedProfileDir(alias, root = configRoot(), env = process.env,
     return path.join(localRoot, 'sycmcli', 'stores', alias, 'chrome-profile');
   }
   return path.join(storesRoot(root), alias, 'chrome-profile');
+}
+
+function aliasHash(alias) {
+  let hash = 2166136261;
+  for (const character of alias) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function allocateManagedPort(alias, root = configRoot()) {
+  validateAlias(alias);
+  const used = new Set(listStores(root)
+    .filter((store) => !store.invalid && store.alias !== alias && store.mode === 'managed')
+    .map((store) => Number(store.port))
+    .filter((port) => Number.isInteger(port) && port >= MANAGED_PORT_MIN && port <= MANAGED_PORT_MAX));
+  const capacity = MANAGED_PORT_MAX - MANAGED_PORT_MIN + 1;
+  const start = aliasHash(alias) % capacity;
+  for (let offset = 0; offset < capacity; offset += 1) {
+    const port = MANAGED_PORT_MIN + ((start + offset) % capacity);
+    if (!used.has(port)) return port;
+  }
+  throw new CliError('MANAGED_PORTS_EXHAUSTED', `No managed browser port is available in ${MANAGED_PORT_MIN}-${MANAGED_PORT_MAX}.`);
+}
+
+export function ensureManagedPort(store, root = configRoot()) {
+  if (store?.mode !== 'managed') return store;
+  const current = Number(store.port);
+  if (Number.isInteger(current) && current >= MANAGED_PORT_MIN && current <= MANAGED_PORT_MAX) return store;
+  const port = allocateManagedPort(store.alias, root);
+  if (store.custom) return { ...store, port };
+  return updateStore(store.alias, { port }, root);
 }
 
 function ensureDir(dir) {
@@ -68,14 +103,14 @@ export function writeStore(alias, value, root = configRoot(), { replace = false 
   if (fs.existsSync(file) && !replace) {
     throw new CliError('STORE_EXISTS', `Store alias "${alias}" already exists.`, { hint: 'Choose another alias or update the existing store explicitly.' });
   }
-  atomicJson(file, { ...value, alias, schemaVersion: 1, updatedAt: new Date().toISOString() });
+  atomicJson(file, { ...value, alias, schemaVersion: 2, updatedAt: new Date().toISOString() });
   return readStore(alias, root);
 }
 
 export function updateStore(alias, patch, root = configRoot()) {
   const current = readStore(alias, root);
   const { file: _file, ...persisted } = current;
-  atomicJson(storeFile(alias, root), { ...persisted, ...patch, alias, schemaVersion: 1, updatedAt: new Date().toISOString() });
+  atomicJson(storeFile(alias, root), { ...persisted, ...patch, alias, schemaVersion: 2, updatedAt: new Date().toISOString() });
   return readStore(alias, root);
 }
 

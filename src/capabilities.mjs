@@ -34,7 +34,7 @@ export const capabilities = {
     { id: 'package.update', commands: ['update status', 'update check', 'update install', 'update config'], default: 'automatic-daily' }
   ],
   adapters: {
-    codex: { status: 'implemented-managed-browser-validation-pending', tool: 'terminal + sycmcli-managed Chrome profile' },
+    codex: { status: 'tested-managed-browser-macos', tool: 'terminal + sycmcli-managed Chrome profile' },
     sealseek: { status: 'implemented-managed-browser-validation-pending', tool: 'terminal + sycmcli-managed Chrome profile' }
   }
 };
