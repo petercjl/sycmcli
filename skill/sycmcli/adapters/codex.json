@@ -37,11 +37,11 @@
       "capability_id": "package.update",
       "status": "tested",
       "implementation": {"kind": "cli-managed", "capability": "npm registry check and exact global tarball installation"},
-      "features": ["registry-version-check", "exact-tarball-install", "managed-skill-links"],
+      "features": ["registry-version-check", "exact-tarball-install", "same-prefix-install", "managed-skill-refresh"],
       "permissions": ["global user npm package maintenance"],
       "normalization": "Expose update state and result as JSON; use the new runtime on the next command.",
       "tested_date": "2026-09-30",
-      "evidence": ["Automated tests verify version comparison and private update-state persistence."]
+      "evidence": ["Automated tests verify version comparison, macOS global-prefix inference, and private update-state persistence."]
     }
   ]
 }

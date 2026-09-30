@@ -17,4 +17,4 @@ Status: tested on macOS with category, item-ranking, price, keyword, and related
 - Keep browser credentials inside SealSeek; only normalized identity and market data cross the adapter boundary.
 - Do not substitute global OpenClaw gateway commands or port 9223 for SealSeek's Agent-native browser.
 
-Status: adapter implemented against the installed OpenClaw native-browser contract; a real SealSeek conversation test is pending user verification.
+Status: adapter implemented against the installed OpenClaw native-browser contract. The updater recognizes both POSIX global npm layouts and Windows npm global layouts. Real SealSeek conversation tests on macOS and Windows remain pending user verification.

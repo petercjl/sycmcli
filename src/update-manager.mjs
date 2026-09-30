@@ -1,8 +1,10 @@
 import childProcess from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { configRoot } from './config.mjs';
 import { CliError } from './errors.mjs';
+import { refreshManagedSkills } from './skill-manager.mjs';
 
 const PACKAGE_NAME = '@petercjl/sycmcli';
 const REGISTRY_ORIGIN = 'https://registry.npmjs.org';
@@ -54,6 +56,21 @@ export function updateInstallEnv(env = process.env) {
   return clean;
 }
 
+export function inferInstallPrefix(moduleFile, platform = process.platform) {
+  const pathApi = platform === 'win32' ? path.win32 : path.posix;
+  const normalized = pathApi.normalize(String(moduleFile || ''));
+  const packageTail = platform === 'win32'
+    ? `${pathApi.sep}node_modules${pathApi.sep}@petercjl${pathApi.sep}sycmcli${pathApi.sep}`
+    : `${pathApi.sep}lib${pathApi.sep}node_modules${pathApi.sep}@petercjl${pathApi.sep}sycmcli${pathApi.sep}`;
+  const markerIndex = normalized.toLowerCase().indexOf(packageTail.toLowerCase());
+  if (markerIndex <= 0) return null;
+  return normalized.slice(0, markerIndex);
+}
+
+export function currentInstallPrefix() {
+  return inferInstallPrefix(fileURLToPath(import.meta.url));
+}
+
 async function registryJson(route) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 7000);
@@ -93,12 +110,19 @@ export async function installUpdate(currentVersion, { targetVersion, root = conf
   if (metadata?.name !== PACKAGE_NAME || metadata?.version !== check.latestVersion || !tarball?.startsWith(`${REGISTRY_ORIGIN}/@petercjl/sycmcli/-/`)) {
     throw new CliError('UPDATE_METADATA_INVALID', 'npm returned unexpected package metadata; update was stopped.');
   }
+  const installPrefix = currentInstallPrefix();
+  if (!installPrefix) {
+    throw new CliError('UPDATE_PREFIX_UNRESOLVED', 'Could not identify the current global npm installation location.', {
+      hint: `Install the published package first: npm install -g ${PACKAGE_NAME}@${check.latestVersion}`
+    });
+  }
   const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const run = childProcess.spawnSync(npmCommand, ['install', '--global', tarball], { encoding: 'utf8', timeout: 120_000, env: updateInstallEnv() });
+  const run = childProcess.spawnSync(npmCommand, ['install', '--global', '--prefix', installPrefix, tarball], { encoding: 'utf8', timeout: 120_000, env: updateInstallEnv() });
   if (run.error || run.status !== 0) {
     throw new CliError('UPDATE_INSTALL_FAILED', 'Automatic update failed.', { details: (run.stderr || run.error?.message || '').trim(), hint: `Run: npm install -g ${PACKAGE_NAME}@${check.latestVersion}` });
   }
-  const result = { ...check, updated: true, installedVersion: check.latestVersion };
+  const refreshedSkills = refreshManagedSkills().map(({ agent, target, mode, current }) => ({ agent, target, mode, current }));
+  const result = { ...check, updated: true, installedVersion: check.latestVersion, installPrefix, refreshedSkills };
   writeUpdateState({ lastCheckedAt: new Date().toISOString(), lastResult: result, lastUpdatedAt: new Date().toISOString() }, root);
   return result;
 }

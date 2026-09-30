@@ -63,7 +63,7 @@ Item ranking accepts at most 20 rows per request. For Top N, pass `--top N`. Ins
 ## Updates
 
 Automatic update is enabled by default and checks npm once every 24 hours. A successful update applies to the next command and the managed Skill links immediately follow the new package.
-The updater isolates the canonical global installation from Agent-specific npm `userconfig` and `prefix` overrides.
+The updater derives the active global npm prefix from the installed package path and updates that same installation. This supports development installs and Agent-managed Node environments without hard-coding a machine path.
 
 - Status: `sycmcli update status`
 - Check now: `sycmcli update check`

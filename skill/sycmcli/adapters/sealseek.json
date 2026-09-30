@@ -31,9 +31,9 @@
       "capability_id": "package.update",
       "status": "implemented",
       "implementation": {"kind": "cli-managed", "capability": "npm registry check and exact global tarball installation"},
-      "features": ["registry-version-check", "exact-tarball-install", "managed-skill-links"],
+      "features": ["registry-version-check", "exact-tarball-install", "same-prefix-install", "managed-skill-refresh"],
       "permissions": ["global user npm package maintenance"],
-      "normalization": "Use the shared CLI update contract. Real SealSeek execution remains pending user validation."
+      "normalization": "Update the npm prefix that contains the running package and refresh managed copied Skills when needed. macOS and Windows SealSeek execution remain pending user validation."
     }
   ]
 }

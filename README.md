@@ -60,9 +60,9 @@ Managed installations use links on macOS/Linux and refuse to overwrite an unmana
 
 ## Automatic updates
 
-Automatic daily update checks are enabled by default. When a newer public npm release exists, `sycmcli` installs the exact registry tarball globally; the next command uses it and linked Agent Skills follow it automatically.
+Automatic daily update checks are enabled by default. When a newer public npm release exists, `sycmcli` installs the exact registry tarball into the same global npm prefix as the running package; the next command uses it and linked Agent Skills follow it automatically.
 
-The updater ignores Agent-specific npm `userconfig` and `prefix` overrides so Codex and SealSeek cannot create shadow global installations.
+The updater derives that prefix from the installed package path and passes it explicitly to npm. This keeps a Homebrew development install, a SealSeek-managed Node installation, and a Windows npm global installation in their own environments without creating a shadow copy.
 
 ```bash
 sycmcli update status

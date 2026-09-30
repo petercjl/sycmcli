@@ -10,7 +10,7 @@ import { writeOutput } from './export.mjs';
 import { buildHostBrowserScript, completeHostResult, readHostPayload } from './host-browser.mjs';
 import { installSkill, skillSource, skillStatus } from './skill-manager.mjs';
 import { categorySearch, categoryTree, itemRank, keywordRank, mainCategory, priceSegments, wordCategory, wordOverview, wordRelated, wordTrend } from './sycm.mjs';
-import { autoUpdateIfNeeded, checkForUpdate, installUpdate, readUpdateState, writeUpdateState } from './update-manager.mjs';
+import { autoUpdateIfNeeded, checkForUpdate, currentInstallPrefix, installUpdate, readUpdateState, writeUpdateState } from './update-manager.mjs';
 
 const HELP = `sycmcli — read-only Shengyicanmou market data CLI
 
@@ -139,7 +139,7 @@ async function handleAuth(action, flags) {
 }
 
 async function handleUpdate(action, flags) {
-  if (action === 'status') return output({ ok: true, currentVersion: capabilities.version, ...readUpdateState() });
+  if (action === 'status') return output({ ok: true, currentVersion: capabilities.version, installPrefix: currentInstallPrefix(), ...readUpdateState() });
   if (action === 'check') return output({ ok: true, ...(await checkForUpdate(capabilities.version, { force: true })) });
   if (action === 'install') return output({ ok: true, ...(await installUpdate(capabilities.version)) });
   if (action === 'config') {

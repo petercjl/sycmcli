@@ -84,3 +84,12 @@ export function installSkill(agent, { update = false } = {}) {
   else copyRecursive(source, info.target);
   return inspect(agent);
 }
+
+export function refreshManagedSkills() {
+  const refreshed = [];
+  for (const agent of Object.keys(agentRoots())) {
+    const info = inspect(agent);
+    if (info.installed && info.managed && !info.current) refreshed.push(installSkill(agent, { update: true }));
+  }
+  return refreshed;
+}

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { compareVersions, readUpdateState, updateInstallEnv, writeUpdateState } from '../src/update-manager.mjs';
+import { compareVersions, inferInstallPrefix, readUpdateState, updateInstallEnv, writeUpdateState } from '../src/update-manager.mjs';
 
 test('compares release versions', () => {
   assert.equal(compareVersions('0.2.0', '0.1.9'), 1);
@@ -31,4 +31,26 @@ test('automatic install ignores agent-specific npm prefix overrides', () => {
   assert.equal(env.NPM_CONFIG_USERCONFIG, undefined);
   assert.equal(env.npm_config_prefix, undefined);
   assert.equal(env.SYCMCLI_DISABLE_AUTO_UPDATE, '1');
+});
+
+test('infers the active global npm prefix on macOS and Linux layouts', () => {
+  assert.equal(
+    inferInstallPrefix('/opt/homebrew/lib/node_modules/@petercjl/sycmcli/src/update-manager.mjs', 'darwin'),
+    '/opt/homebrew'
+  );
+  assert.equal(
+    inferInstallPrefix('/Users/demo/.sealseek/binaries/node/global/lib/node_modules/@petercjl/sycmcli/src/update-manager.mjs', 'darwin'),
+    '/Users/demo/.sealseek/binaries/node/global'
+  );
+});
+
+test('infers the active global npm prefix on Windows', () => {
+  assert.equal(
+    inferInstallPrefix('C:\\Users\\demo\\AppData\\Roaming\\npm\\node_modules\\@petercjl\\sycmcli\\src\\update-manager.mjs', 'win32'),
+    'C:\\Users\\demo\\AppData\\Roaming\\npm'
+  );
+});
+
+test('does not guess an update prefix from a source checkout', () => {
+  assert.equal(inferInstallPrefix('/Users/demo/src/sycmcli/src/update-manager.mjs', 'darwin'), null);
 });

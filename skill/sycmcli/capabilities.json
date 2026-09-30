@@ -4,7 +4,7 @@
   "skill": "sycmcli",
   "target_platforms": ["codex", "sealseek"],
   "normalized_result_fields": ["ok", "store", "identity", "fetchedAt", "data", "export", "error"],
-  "standard_errors": ["CAPABILITY_UNAVAILABLE", "AUTH_REQUIRED", "AUTH_OR_RISK_CHALLENGE", "BROWSER_UNAVAILABLE", "STORE_IDENTITY_MISMATCH", "OUTPUT_EXISTS", "SYCM_REQUEST_TIMEOUT"],
+  "standard_errors": ["CAPABILITY_UNAVAILABLE", "AUTH_REQUIRED", "AUTH_OR_RISK_CHALLENGE", "BROWSER_UNAVAILABLE", "STORE_IDENTITY_MISMATCH", "OUTPUT_EXISTS", "SYCM_REQUEST_TIMEOUT", "UPDATE_PREFIX_UNRESOLVED"],
   "capabilities": [
     {
       "id": "command.execute",
@@ -37,9 +37,9 @@
       "id": "package.update",
       "purpose": "Check the official npm registry and install a newer verified sycmcli release.",
       "required": false,
-      "required_features": ["registry-version-check", "exact-tarball-install", "managed-skill-links"],
+      "required_features": ["registry-version-check", "exact-tarball-install", "same-prefix-install", "managed-skill-refresh"],
       "input_fields": ["auto_update", "interval_hours", "target_version"],
-      "output_fields": ["current_version", "latest_version", "updated"],
+      "output_fields": ["current_version", "latest_version", "updated", "install_prefix", "refreshed_skills"],
       "side_effects": {"external_mutation": true, "may_cost_money": false, "authorization": "default-package-maintenance"}
     }
   ]
