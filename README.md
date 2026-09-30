@@ -28,6 +28,8 @@ sycmcli stores add my-shop --mode host --platform sealseek --browser-profile my-
 
 SealSeek opens `https://sycm.taobao.com/` in that native browser profile, executes the CLI-returned browser task, then passes the result to `sycmcli host complete`. Browser cookies and tokens never leave the browser.
 
+If the same machine already has that alias configured for Codex, keep the alias and add `--transport host --browser-profile <name>` to SealSeek data commands. The two Agents share the identity binding but use different browser transports.
+
 ## Examples
 
 ```bash

@@ -1,7 +1,7 @@
 export const capabilities = {
   schemaVersion: 1,
   package: '@petercjl/sycmcli',
-  version: '0.2.0',
+  version: '0.2.1',
   safety: {
     authorizationBoundary: 'read-only',
     browserAuthentication: true,

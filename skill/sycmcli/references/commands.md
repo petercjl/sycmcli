@@ -9,6 +9,9 @@ sycmcli stores add shanju --mode attached --cdp-url http://127.0.0.1:9223
 # SealSeek: native persistent browser, one profile per shop
 sycmcli stores add shanju --mode host --platform sealseek --browser-profile shanju
 
+# Same machine already has the Codex alias: use SealSeek transport per command
+sycmcli category search --store shanju --transport host --browser-profile shanju --keyword 奶锅
+
 sycmcli stores list
 sycmcli stores use shanju
 sycmcli auth login --store shanju

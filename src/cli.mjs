@@ -200,11 +200,11 @@ async function prepareHostTask(store, operation, flags) {
     ok: true,
     action: 'browser.evaluate',
     store: publicStore(store),
-    platform: store.platform,
-    browserProfile: store.browserProfile,
+    platform: String(flags.platform || store.platform || 'sealseek'),
+    browserProfile: String(flags['browser-profile'] || store.browserProfile || store.alias),
     url: 'https://sycm.taobao.com/',
     script: buildHostBrowserScript(operation, options),
-    completion: { command: `sycmcli host complete --store ${store.alias}` }
+    completion: { command: `sycmcli host complete --store ${store.alias} --transport host` }
   });
 }
 
@@ -229,7 +229,7 @@ export async function main(argv) {
   if (command === 'update') return handleUpdate(action, flags);
   if (command === 'host' && action === 'complete') {
     const store = resolveStore(flags);
-    invariant(store.mode === 'host', 'INVALID_STORE_MODE', 'host complete requires a host-mode store.');
+    invariant(store.mode === 'host' || flags.transport === 'host', 'INVALID_STORE_MODE', 'host complete requires a host-mode store or --transport host.');
     const payload = await readHostPayload();
     return output(await completeHostResult(store, payload, { out: flags.out && String(flags.out), format: flags.format && String(flags.format), force: booleanFlag(flags, 'force') }));
   }

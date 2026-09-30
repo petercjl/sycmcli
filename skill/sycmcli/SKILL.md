@@ -30,11 +30,11 @@ Codex uses the dedicated ecommerce Chrome at `http://127.0.0.1:9223`.
 
 SealSeek uses its native persistent browser and browser `evaluate`; it does not require port 9223.
 
-1. Configure one browser profile per store: `sycmcli stores add <alias> --mode host --platform sealseek --browser-profile <profile>`.
+1. If the store does not exist, configure one browser profile per store: `sycmcli stores add <alias> --mode host --platform sealseek --browser-profile <profile>`.
 2. Open `https://sycm.taobao.com/` with that exact SealSeek browser profile. Let the user sign in when needed.
-3. Run the requested `sycmcli` data command. For a host-mode store it returns `action: browser.evaluate`, `browserProfile`, `url`, and a self-contained `script`.
+3. Run the requested data command. A host-mode store returns a browser task directly. If this machine already uses the same alias for Codex CDP, add `--transport host --browser-profile <profile>`; this reuses the identity binding without using port 9223.
 4. Use SealSeek's native browser with the returned profile and URL, then pass the returned `script` unchanged to browser `evaluate`.
-5. Pass the exact JSON evaluate result to `sycmcli host complete --store <alias>` on stdin. Add `--out` only when an export was requested.
+5. Pass the exact JSON evaluate result to the returned completion command on stdin. Add `--out` only when an export was requested.
 6. Parse the normalized completion result. Never execute a host task in a different profile or bind it to a different alias.
 
 If native browser `evaluate` is unavailable, return `CAPABILITY_UNAVAILABLE`; do not fall back to a guessed Chrome port.
