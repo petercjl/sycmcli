@@ -1,6 +1,6 @@
 {
   "name": "@petercjl/sycmcli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read-only Shengyicanmou market data CLI with multi-store browser authentication and portable Agent skill",
   "type": "module",
   "bin": {
@@ -15,7 +15,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test",
+    "test": "SYCMCLI_DISABLE_AUTO_UPDATE=1 node --test",
     "check": "node --check scripts/sycmcli.mjs && node --check src/*.mjs",
     "prepack": "npm run check && npm test"
   },

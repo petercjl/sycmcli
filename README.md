@@ -1,6 +1,6 @@
 # sycmcli
 
-`@petercjl/sycmcli` is a read-only CLI for retrieving authorized Shengyicanmou (生意参谋) market data from a logged-in Google Chrome profile. It supports separate browser authentication per store and ships one canonical portable Agent Skill for Codex and SealSeek.
+`@petercjl/sycmcli` is a read-only CLI for retrieving authorized Shengyicanmou (生意参谋) market data. Codex uses the dedicated Chrome CDP session; SealSeek uses its native persistent browser. Each store keeps a separate identity binding and browser profile.
 
 ## Install
 
@@ -10,21 +10,23 @@ sycmcli skill install --agent codex
 sycmcli doctor --json
 ```
 
-Node.js 20 or newer and Google Chrome are required. On first use:
+Node.js 20 or newer is required.
+
+Codex setup:
 
 ```bash
-sycmcli stores add my-shop
-sycmcli auth login --store my-shop
+sycmcli stores add my-shop --mode attached --cdp-url http://127.0.0.1:9223
 sycmcli auth status --store my-shop
 ```
 
-Each managed alias has its own Chrome user-data directory. Browser cookies and site tokens stay inside Chrome; `store.json` contains only browser connection metadata and a shop identity binding.
-
-To reuse an explicitly opened loopback CDP browser:
+SealSeek setup:
 
 ```bash
-sycmcli stores add my-attached-shop --mode attached --cdp-url http://127.0.0.1:9223
+sycmcli skill install --agent sealseek
+sycmcli stores add my-shop --mode host --platform sealseek --browser-profile my-shop
 ```
+
+SealSeek opens `https://sycm.taobao.com/` in that native browser profile, executes the CLI-returned browser task, then passes the result to `sycmcli host complete`. Browser cookies and tokens never leave the browser.
 
 ## Examples
 
@@ -53,6 +55,17 @@ sycmcli skill update --agent codex
 ```
 
 Managed installations use links on macOS/Linux and refuse to overwrite an unmanaged Skill directory.
+
+## Automatic updates
+
+Automatic daily update checks are enabled by default. When a newer public npm release exists, `sycmcli` installs the exact registry tarball globally; the next command uses it and linked Agent Skills follow it automatically.
+
+```bash
+sycmcli update status
+sycmcli update check
+sycmcli update install
+sycmcli update config --auto-update true --interval-hours 24
+```
 
 ## License
 

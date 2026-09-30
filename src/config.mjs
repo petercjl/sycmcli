@@ -106,7 +106,7 @@ export function resolveStore(flags, root = configRoot()) {
       throw new CliError('STORE_CONFIG_INVALID', `Cannot read --store-config ${file}.`, { details: error.message });
     }
     invariant(value.alias, 'STORE_CONFIG_INVALID', 'The custom store config needs an alias.');
-    return { ...value, file };
+    return { ...value, file, custom: true };
   }
   const alias = flags.store ? String(flags.store) : currentStore(root);
   if (!alias) throw new CliError('STORE_REQUIRED', 'No store selected.', { hint: 'Pass --store <alias> or run sycmcli stores use <alias>.' });
@@ -117,6 +117,8 @@ export function publicStore(store, root = configRoot()) {
   return {
     alias: store.alias,
     mode: store.mode,
+    platform: store.platform,
+    browserProfile: store.browserProfile,
     cdpUrl: store.cdpUrl,
     port: store.port,
     profileDir: store.profileDir ? path.relative(root, store.profileDir) || '.' : undefined,

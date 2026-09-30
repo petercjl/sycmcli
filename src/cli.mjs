@@ -7,13 +7,16 @@ import { browserIdentity, ensureBrowser, isCdpReady } from './cdp.mjs';
 import { configRoot, currentStore, listStores, publicStore, readStore, resolveStore, setCurrentStore, updateStore, writeStore } from './config.mjs';
 import { CliError, invariant } from './errors.mjs';
 import { writeOutput } from './export.mjs';
+import { buildHostBrowserScript, completeHostResult, readHostPayload } from './host-browser.mjs';
 import { installSkill, skillSource, skillStatus } from './skill-manager.mjs';
 import { categorySearch, categoryTree, itemRank, keywordRank, mainCategory, priceSegments, wordCategory, wordOverview, wordRelated, wordTrend } from './sycm.mjs';
+import { autoUpdateIfNeeded, checkForUpdate, installUpdate, readUpdateState, writeUpdateState } from './update-manager.mjs';
 
 const HELP = `sycmcli — read-only Shengyicanmou market data CLI
 
 Usage:
-  sycmcli stores add <alias> [--mode managed|attached] [--cdp-url http://127.0.0.1:9223] [--port 9333]
+  sycmcli stores add <alias> [--mode managed|attached|host] [--cdp-url http://127.0.0.1:9223]
+                              [--platform sealseek] [--browser-profile <name>]
   sycmcli stores list | use <alias> | show [alias]
   sycmcli auth login|status [--store <alias>]
   sycmcli category search --keyword <text> [--store <alias>]
@@ -25,6 +28,8 @@ Usage:
   sycmcli capabilities --json
   sycmcli doctor --json
   sycmcli skill source|status|install|update [--agent codex|sealseek|agents|openclaw]
+  sycmcli update status|check|install|config [--auto-update true|false] [--interval-hours N]
+  sycmcli host complete --store <alias> < evaluate-result.json
 
 Common data options:
   --store <alias> --date-type day|recent7|recent30 --date-range YYYY-MM-DD|YYYY-MM-DD
@@ -85,11 +90,18 @@ async function handleStores(action, rest, flags) {
     const alias = rest[0];
     invariant(alias, 'MISSING_ARGUMENT', 'stores add requires an alias.', { exitCode: 2 });
     const mode = String(flags.mode || 'managed');
-    invariant(['managed', 'attached'].includes(mode), 'INVALID_ARGUMENT', '--mode must be managed or attached.', { exitCode: 2 });
+    invariant(['managed', 'attached', 'host'].includes(mode), 'INVALID_ARGUMENT', '--mode must be managed, attached, or host.', { exitCode: 2 });
     const root = configRoot();
-    const port = flags.port ? integerFlag(flags, 'port', undefined, { min: 1024, max: 65535 }) : (mode === 'managed' ? nextManagedPort(listStores(root)) : Number(new URL(String(flags['cdp-url'] || 'http://127.0.0.1:9223')).port || 80));
-    const cdpUrl = String(flags['cdp-url'] || `http://127.0.0.1:${port}`);
-    const value = { mode, cdpUrl, port, ...(mode === 'managed' ? { profileDir: path.join(root, 'stores', alias, 'chrome-profile') } : {}), identity: null, createdAt: new Date().toISOString() };
+    let value;
+    if (mode === 'host') {
+      const platform = String(flags.platform || 'sealseek');
+      invariant(platform === 'sealseek', 'INVALID_ARGUMENT', 'Host browser mode currently supports --platform sealseek.', { exitCode: 2 });
+      value = { mode, platform, browserProfile: String(flags['browser-profile'] || alias), identity: null, createdAt: new Date().toISOString() };
+    } else {
+      const port = flags.port ? integerFlag(flags, 'port', undefined, { min: 1024, max: 65535 }) : (mode === 'managed' ? nextManagedPort(listStores(root)) : Number(new URL(String(flags['cdp-url'] || 'http://127.0.0.1:9223')).port || 80));
+      const cdpUrl = String(flags['cdp-url'] || `http://127.0.0.1:${port}`);
+      value = { mode, cdpUrl, port, ...(mode === 'managed' ? { profileDir: path.join(root, 'stores', alias, 'chrome-profile') } : {}), identity: null, createdAt: new Date().toISOString() };
+    }
     const store = writeStore(alias, value, root);
     if (!currentStore(root)) setCurrentStore(alias, root);
     return output({ ok: true, store: publicStore(store, root), current: currentStore(root) === alias });
@@ -111,6 +123,10 @@ async function handleStores(action, rest, flags) {
 
 async function handleAuth(action, flags) {
   const store = resolveStore(flags);
+  if (store.mode === 'host') {
+    if (action === 'login') return output({ ok: true, actionRequired: 'browser.login', store: store.alias, platform: store.platform, browserProfile: store.browserProfile, url: 'https://sycm.taobao.com/', message: 'Open this URL in the named SealSeek browser profile and complete login.' });
+    if (action === 'status') return output({ ok: true, store: store.alias, authenticated: Boolean(store.identity), identity: store.identity || null, verification: store.identity ? 'bound-by-last-successful-fetch' : 'run-one-data-command-to-verify' });
+  }
   if (action === 'login') {
     const cdpUrl = await ensureBrowser(store, { openLogin: true });
     return output({ ok: true, store: store.alias, cdpUrl, message: 'Chrome is open. Complete login or verification there, then run auth status.' });
@@ -120,6 +136,20 @@ async function handleAuth(action, flags) {
     return output({ ok: true, store: meta.store.alias, cdpUrl: meta.cdpUrl, authenticated: true, identity: identitySummary(meta.identity), bound: true });
   }
   throw new CliError('UNKNOWN_COMMAND', `Unknown auth command: ${action || ''}`, { exitCode: 2 });
+}
+
+async function handleUpdate(action, flags) {
+  if (action === 'status') return output({ ok: true, currentVersion: capabilities.version, ...readUpdateState() });
+  if (action === 'check') return output({ ok: true, ...(await checkForUpdate(capabilities.version, { force: true })) });
+  if (action === 'install') return output({ ok: true, ...(await installUpdate(capabilities.version)) });
+  if (action === 'config') {
+    const patch = {};
+    if (flags['auto-update'] !== undefined) patch.autoUpdate = booleanFlag(flags, 'auto-update');
+    if (flags['interval-hours'] !== undefined) patch.intervalHours = integerFlag(flags, 'interval-hours', 24, { min: 1, max: 720 });
+    invariant(Object.keys(patch).length > 0, 'MISSING_ARGUMENT', 'Pass --auto-update true|false or --interval-hours N.', { exitCode: 2 });
+    return output({ ok: true, ...writeUpdateState(patch) });
+  }
+  throw new CliError('UNKNOWN_COMMAND', `Unknown update command: ${action || ''}`, { exitCode: 2 });
 }
 
 async function handleSkill(action, flags) {
@@ -141,8 +171,41 @@ async function doctor() {
     { id: 'skill-source', ok: fs.existsSync(path.join(skillSource(), 'SKILL.md')), value: skillSource() },
     { id: 'stores-configured', ok: stores.length > 0, value: stores.length }
   ];
-  for (const store of stores) checks.push({ id: `browser:${store.alias}`, ok: await isCdpReady(store.cdpUrl), value: store.cdpUrl });
+  for (const store of stores) {
+    if (store.mode === 'host') checks.push({ id: `browser:${store.alias}`, ok: true, value: `${store.platform}:${store.browserProfile}`, verification: 'agent-runtime-required' });
+    else checks.push({ id: `browser:${store.alias}`, ok: await isCdpReady(store.cdpUrl), value: store.cdpUrl });
+  }
   return { ok: checks.every((check) => check.ok), platform: process.platform, arch: process.arch, hostname: os.hostname(), checks };
+}
+
+function operationFor(command, action) {
+  const key = `${command || ''} ${action || ''}`.trim();
+  return ({
+    'category search': 'category-search', 'category tree': 'category-tree', 'category main': 'category-main',
+    'item rank': 'item-rank', 'price segments': 'price-segments', 'keyword rank': 'keyword-rank',
+    'word overview': 'word-overview', 'word trend': 'word-trend', 'word related': 'word-related', 'word category': 'word-category'
+  })[key] || null;
+}
+
+async function prepareHostTask(store, operation, flags) {
+  const options = dataOptions(flags);
+  if (operation === 'category-search') {
+    options.keyword = requireFlag(flags, 'keyword');
+    options.exact = booleanFlag(flags, 'exact');
+    options.leafOnly = booleanFlag(flags, 'leaf-only', true);
+    options.cateLevel1Id = flags['cate-level1-id'];
+    options.limit = flags.limit ? integerFlag(flags, 'limit', undefined, { min: 1 }) : undefined;
+  }
+  output({
+    ok: true,
+    action: 'browser.evaluate',
+    store: publicStore(store),
+    platform: store.platform,
+    browserProfile: store.browserProfile,
+    url: 'https://sycm.taobao.com/',
+    script: buildHostBrowserScript(operation, options),
+    completion: { command: `sycmcli host complete --store ${store.alias}` }
+  });
 }
 
 export async function main(argv) {
@@ -150,11 +213,31 @@ export async function main(argv) {
   const [command, action, ...rest] = positionals;
   if (!command || command === 'help' || flags.help) { process.stdout.write(HELP); return; }
   if (command === 'version' || flags.version) { output({ name: '@petercjl/sycmcli', version: capabilities.version }); return; }
+  if (command !== 'update') {
+    try {
+      const update = await autoUpdateIfNeeded(capabilities.version);
+      if (update.updated) process.stderr.write(`${JSON.stringify({ ok: true, notice: 'SYCMCLI_UPDATED', installedVersion: update.installedVersion, message: 'The update is installed and will be used by the next command.' })}\n`);
+    } catch (error) {
+      process.stderr.write(`${JSON.stringify({ ok: false, warning: 'AUTO_UPDATE_FAILED', message: error.message })}\n`);
+    }
+  }
   if (command === 'capabilities') { output(capabilities, flags); return; }
   if (command === 'doctor') { const result = await doctor(); output(result, flags); if (!result.ok) process.exitCode = 1; return; }
   if (command === 'stores') return handleStores(action, rest, flags);
   if (command === 'auth') return handleAuth(action, flags);
   if (command === 'skill') return handleSkill(action, flags);
+  if (command === 'update') return handleUpdate(action, flags);
+  if (command === 'host' && action === 'complete') {
+    const store = resolveStore(flags);
+    invariant(store.mode === 'host', 'INVALID_STORE_MODE', 'host complete requires a host-mode store.');
+    const payload = await readHostPayload();
+    return output(await completeHostResult(store, payload, { out: flags.out && String(flags.out), format: flags.format && String(flags.format), force: booleanFlag(flags, 'force') }));
+  }
+
+  const operation = operationFor(command, action);
+  if (!operation) throw new CliError('UNKNOWN_COMMAND', `Unknown command: ${[command, action].filter(Boolean).join(' ')}`, { exitCode: 2, hint: 'Run sycmcli help.' });
+  const selectedStore = resolveStore(flags);
+  if (selectedStore.mode === 'host' || flags.transport === 'host') return prepareHostTask(selectedStore, operation, flags);
 
   const meta = await authenticatedStore(flags);
   const options = dataOptions(flags);

@@ -17,7 +17,7 @@
       "capability_id": "browser.session-user-login",
       "status": "tested",
       "implementation": {"kind": "cli-managed", "capability": "sycmcli store profile and loopback CDP connection"},
-      "features": ["loopback-cdp", "persistent-profile", "visible-user-login", "identity-binding"],
+      "features": ["loopback-cdp", "persistent-profile", "visible-user-login", "page-javascript-evaluate", "identity-binding"],
       "permissions": ["user-selected local Chrome profile", "authorized Shengyicanmou session"],
       "normalization": "Return only a safe shop identity summary; cookies and legality tokens stay inside Chrome.",
       "tested_date": "2026-09-30",
@@ -32,6 +32,16 @@
       "normalization": "Return output path, format, size, and permissions; refuse implicit overwrite.",
       "tested_date": "2026-09-30",
       "evidence": ["Automated tests wrote all three formats and verified overwrite refusal."]
+    },
+    {
+      "capability_id": "package.update",
+      "status": "tested",
+      "implementation": {"kind": "cli-managed", "capability": "npm registry check and exact global tarball installation"},
+      "features": ["registry-version-check", "exact-tarball-install", "managed-skill-links"],
+      "permissions": ["global user npm package maintenance"],
+      "normalization": "Expose update state and result as JSON; use the new runtime on the next command.",
+      "tested_date": "2026-09-30",
+      "evidence": ["Automated tests verify version comparison and private update-state persistence."]
     }
   ]
 }

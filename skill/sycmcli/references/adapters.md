@@ -2,18 +2,19 @@
 
 ## Codex
 
-- Execute `sycmcli` in the terminal.
+- Run `sycmcli` in the terminal.
+- Use store mode `attached` with `http://127.0.0.1:9223`.
 - Parse JSON stdout and structured JSON stderr.
-- Use absolute paths for requested exports and return clickable local file links.
-- If a visible login is needed, `sycmcli auth login` opens the store-specific Google Chrome profile.
+- Return absolute, clickable paths for exports.
 
-Status: tested on macOS after package verification.
+Status: tested on macOS with category, item-ranking, price, keyword, and related-word reads.
 
 ## SealSeek
 
-- Execute the same `sycmcli` binary through SealSeek's shell/terminal capability.
-- Preserve argument arrays and parse stdout/stderr as JSON; do not interpolate user strings into a shell command.
-- The visible Chrome login remains a user action on the local machine.
-- Load this canonical bundled Skill rather than maintaining a separate copy of business logic.
+- Run `sycmcli` through the local shell.
+- Use store mode `host` and one named native browser profile per store.
+- Open Shengyicanmou in that profile, execute the CLI-returned function with native browser `evaluate`, then send its JSON result to `sycmcli host complete`.
+- Keep browser credentials inside SealSeek; only normalized identity and market data cross the adapter boundary.
+- Do not substitute global OpenClaw gateway commands or port 9223 for SealSeek's Agent-native browser.
 
-Status: implemented against the shared CLI contract; real SealSeek runtime test is pending user verification.
+Status: adapter implemented against the installed OpenClaw native-browser contract; a real SealSeek conversation test is pending user verification.

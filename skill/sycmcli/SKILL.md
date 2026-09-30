@@ -1,29 +1,51 @@
 ---
 name: sycmcli
-description: Use the sycmcli CLI to read authorized Shengyicanmou market categories, item rankings, price segments, keyword rankings, and search-word analytics from a user-selected Taobao or Tmall store session. Trigger when the user asks for 生意参谋市场数据、市场排行、搜索词分析、类目榜单、价格带，or multi-store SYCM authentication and exports.
+description: Use sycmcli to read authorized Shengyicanmou market categories, item rankings, price segments, keyword rankings, and search-word analytics for a user-selected Taobao or Tmall store. Trigger for 生意参谋市场数据、市场排行、搜索词分析、类目榜单、价格带、多店铺取数或导出。
 ---
 
 # sycmcli
 
-Use the installed `sycmcli` command as the only business-logic execution surface. The npm package is the source of truth; do not recreate its requests in ad hoc scripts.
+Use the installed `sycmcli` command as the only business-logic runtime. The npm package is the source of truth; never recreate its requests in an ad hoc script.
 
 ## Main line
 
-1. Run `sycmcli doctor --json` when setup or browser state is uncertain.
-2. Resolve the requested store. Use `sycmcli stores list`; if the user names a store, pass its exact alias with `--store`. Do not silently use a different store.
-3. Run `sycmcli auth status --store <alias>`. If authentication is missing, run `sycmcli auth login --store <alias>`, ask the user to finish the visible login, then retry status.
-4. Resolve a category with `category search` when no unambiguous `cateId` is already known.
-5. Run the relevant read command. Prefer JSON for analysis; use `--out` only when the user requests a file.
-6. Check `ok`, selected store identity, returned counts, pagination fields, warnings, and completeness before analyzing or presenting results.
-7. Return to the requested business analysis after data collection.
+1. Run `sycmcli doctor --json` when setup is uncertain.
+2. Resolve the exact store with `sycmcli stores list`. Pass `--store <alias>` whenever the user names a store.
+3. Follow the platform flow below to verify login and collect data.
+4. Resolve an ambiguous category with `category search`.
+5. Run the requested read command. Prefer JSON for analysis; use `--out` only for a requested export.
+6. Check `ok`, identity, returned counts, pagination fields, warnings, and completeness.
+7. Continue with the requested analysis.
+
+## Codex flow
+
+Codex uses the dedicated ecommerce Chrome at `http://127.0.0.1:9223`.
+
+1. Configure the alias once: `sycmcli stores add <alias> --mode attached --cdp-url http://127.0.0.1:9223`.
+2. Run `sycmcli auth status --store <alias>`.
+3. If login is required, open the ecommerce browser, let the user sign in to Shengyicanmou, and retry.
+4. Run the data command normally.
+
+## SealSeek flow
+
+SealSeek uses its native persistent browser and browser `evaluate`; it does not require port 9223.
+
+1. Configure one browser profile per store: `sycmcli stores add <alias> --mode host --platform sealseek --browser-profile <profile>`.
+2. Open `https://sycm.taobao.com/` with that exact SealSeek browser profile. Let the user sign in when needed.
+3. Run the requested `sycmcli` data command. For a host-mode store it returns `action: browser.evaluate`, `browserProfile`, `url`, and a self-contained `script`.
+4. Use SealSeek's native browser with the returned profile and URL, then pass the returned `script` unchanged to browser `evaluate`.
+5. Pass the exact JSON evaluate result to `sycmcli host complete --store <alias>` on stdin. Add `--out` only when an export was requested.
+6. Parse the normalized completion result. Never execute a host task in a different profile or bind it to a different alias.
+
+If native browser `evaluate` is unavailable, return `CAPABILITY_UNAVAILABLE`; do not fall back to a guessed Chrome port.
 
 ## Safety boundary
 
-- This Skill authorizes read-only Shengyicanmou market-data access. It does not authorize edits, advertising changes, purchases, messages, or account administration.
-- Authentication remains inside the dedicated Chrome profile. Never request, print, export, or persist raw cookies, legality tokens, passwords, or browser storage.
-- Stop when the CLI reports login, verification, risk-control, identity mismatch, or permission errors. Let the user complete the visible site flow; do not bypass it.
-- Each store alias is bound to one verified shop identity. Treat `STORE_IDENTITY_MISMATCH` as a hard stop.
-- Do not overwrite an existing export unless the user explicitly authorizes replacement and the command uses `--force`.
+- Read-only Shengyicanmou market data only. Do not edit ads, products, accounts, or settings.
+- Authentication remains in the selected browser profile. Never request, print, export, or persist cookies, legality tokens, passwords, or browser storage.
+- Stop on login, verification, risk-control, identity mismatch, or permission errors. The user completes first-party verification visibly.
+- Each alias binds to one verified shop identity. `STORE_IDENTITY_MISMATCH` is a hard stop.
+- Do not overwrite an export without explicit authorization and `--force`.
 
 ## Command routing
 
@@ -32,20 +54,20 @@ Use the installed `sycmcli` command as the only business-logic execution surface
 - Price bands: `sycmcli price segments`
 - Keyword rankings: `sycmcli keyword rank`
 - Search-word detail: `sycmcli word overview|trend|related|category --keyword <text>`
-- Full option examples and result contracts: read [references/commands.md](references/commands.md).
+- Full inputs and outputs: [references/commands.md](references/commands.md)
 
 ## Pagination and completeness
 
-The item-ranking endpoint allows at most 20 rows per request. For a requested Top N, pass `--top N`; inspect `fetchedPages`, `stoppedBy`, `returnedCount`, `recordCount`, and `warnings`. Do not claim complete coverage when the response stopped early, returned fewer rows than requested, or the site limited access.
+Item ranking accepts at most 20 rows per request. For Top N, pass `--top N`. Inspect `fetchedPages`, `stoppedBy`, `returnedCount`, `recordCount`, and `warnings`. Do not claim complete coverage when collection stopped early.
 
-## Multi-store setup
+## Updates
 
-Use `stores add <alias>` for a dedicated managed Chrome profile. Use `--mode attached --cdp-url http://127.0.0.1:<port>` only when the user intentionally wants an already running loopback Chrome session. Configuration stores metadata and identity binding only, never cookies.
+Automatic update is enabled by default and checks npm once every 24 hours. A successful update applies to the next command and the managed Skill links immediately follow the new package.
 
-## Capability and update discovery
+- Status: `sycmcli update status`
+- Check now: `sycmcli update check`
+- Install now: `sycmcli update install`
+- Configure: `sycmcli update config --auto-update true --interval-hours 24`
+- Managed Skill status/update: `sycmcli skill status` and `sycmcli skill update --agent <agent>`
 
-Before depending on an unfamiliar command contract, run `sycmcli capabilities --json` and `sycmcli help`. Discover the canonical Skill with `sycmcli skill source`; check or refresh managed installations with `sycmcli skill status`, `skill install`, and `skill update`.
-
-## Platform adapters
-
-Codex uses terminal execution and local files; see [references/adapters.md](references/adapters.md). SealSeek uses the same CLI contract through its shell capability. The SealSeek adapter is implemented from the public contract but must be reported as untested until a real SealSeek run succeeds.
+Read [references/adapters.md](references/adapters.md) for platform evidence and verification status.

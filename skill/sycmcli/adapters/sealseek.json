@@ -14,10 +14,10 @@
     {
       "capability_id": "browser.session-user-login",
       "status": "implemented",
-      "implementation": {"kind": "cli-managed", "capability": "sycmcli visible Chrome login and loopback CDP"},
-      "features": ["loopback-cdp", "persistent-profile", "visible-user-login", "identity-binding"],
-      "permissions": ["user-selected local Chrome profile", "authorized Shengyicanmou session"],
-      "normalization": "Let sycmcli own the browser profile and identity check. Real SealSeek execution remains pending user validation."
+      "implementation": {"kind": "agent-native", "capability": "SealSeek persistent browser navigation and JavaScript evaluate"},
+      "features": ["persistent-profile", "visible-user-login", "page-javascript-evaluate", "identity-binding"],
+      "permissions": ["user-selected SealSeek browser profile", "authorized Shengyicanmou session"],
+      "normalization": "Run the CLI-generated page function inside the named profile, then normalize it with sycmcli host complete. Real SealSeek execution remains pending user validation."
     },
     {
       "capability_id": "workspace.files-export",
@@ -26,6 +26,14 @@
       "features": ["absolute-path", "existence-check", "json", "csv", "xlsx"],
       "permissions": ["user-requested output path"],
       "normalization": "Use the shared CLI export contract and surface overwrite refusal. Real SealSeek execution remains pending user validation."
+    },
+    {
+      "capability_id": "package.update",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "npm registry check and exact global tarball installation"},
+      "features": ["registry-version-check", "exact-tarball-install", "managed-skill-links"],
+      "permissions": ["global user npm package maintenance"],
+      "normalization": "Use the shared CLI update contract. Real SealSeek execution remains pending user validation."
     }
   ]
 }

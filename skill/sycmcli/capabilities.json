@@ -17,10 +17,10 @@
     },
     {
       "id": "browser.session-user-login",
-      "purpose": "Open or attach to a local store-specific Google Chrome profile so the user can complete first-party Shengyicanmou authentication.",
+      "purpose": "Use the platform-selected persistent browser session so the user can complete first-party Shengyicanmou authentication and authorized page-context reads.",
       "required": true,
-      "required_features": ["loopback-cdp", "persistent-profile", "visible-user-login", "identity-binding"],
-      "input_fields": ["store_alias", "browser_mode", "cdp_url"],
+      "required_features": ["persistent-profile", "visible-user-login", "page-javascript-evaluate", "identity-binding"],
+      "input_fields": ["store_alias", "browser_mode", "cdp_url", "browser_profile"],
       "output_fields": ["authenticated", "store_alias", "identity"],
       "side_effects": {"external_mutation": true, "may_cost_money": false, "authorization": "user-selected-store-session"}
     },
@@ -32,6 +32,15 @@
       "input_fields": ["output_path", "format", "replace_authorized"],
       "output_fields": ["path", "format", "bytes", "mode"],
       "side_effects": {"external_mutation": true, "may_cost_money": false, "authorization": "explicit-export-request"}
+    },
+    {
+      "id": "package.update",
+      "purpose": "Check the official npm registry and install a newer verified sycmcli release.",
+      "required": false,
+      "required_features": ["registry-version-check", "exact-tarball-install", "managed-skill-links"],
+      "input_fields": ["auto_update", "interval_hours", "target_version"],
+      "output_fields": ["current_version", "latest_version", "updated"],
+      "side_effects": {"external_mutation": true, "may_cost_money": false, "authorization": "default-package-maintenance"}
     }
   ]
 }
