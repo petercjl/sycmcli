@@ -1,7 +1,7 @@
 {
   "name": "@petercjl/sycmcli",
-  "version": "0.2.3",
-  "description": "Read-only Shengyicanmou market data CLI with multi-store browser authentication and portable Agent skill",
+  "version": "0.3.0-next.0",
+  "description": "Taobao/Tmall business data CLI with multi-store browser authentication, guarded mutations, and a portable Agent skill",
   "type": "module",
   "bin": {
     "sycmcli": "scripts/sycmcli.mjs"

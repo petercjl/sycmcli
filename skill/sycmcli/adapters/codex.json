@@ -24,6 +24,30 @@
       "evidence": ["Codex bound the shanju alias to an existing authenticated loopback CDP session and enforced its stable identity."]
     },
     {
+      "capability_id": "business.analysis-local",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli deterministic analysis runner"},
+      "features": ["local-json-input", "deterministic-calculation", "structured-result"],
+      "permissions": ["user-provided or collected local JSON"],
+      "normalization": "Use the shared analyze run JSON contract."
+    },
+    {
+      "capability_id": "browser.registered-data-read",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "registered page requests over attached Chrome CDP"},
+      "features": ["operation-allowlist", "first-party-page", "page-javascript-evaluate", "structured-result"],
+      "permissions": ["attached loopback Chrome", "registered first-party service page"],
+      "normalization": "The CLI selects the service tab, executes only the packaged operation descriptor, and returns structured JSON."
+    },
+    {
+      "capability_id": "business.mutation-plan-apply",
+      "status": "implemented-framework-workflow-validation-pending",
+      "implementation": {"kind": "hybrid", "capability": "sycmcli plan authorization plus registered browser workflow"},
+      "features": ["payload-digest", "short-expiry", "confirmation-code", "identity-binding", "idempotency-key", "audit-log", "post-write-readback"],
+      "permissions": ["exact user-confirmed plan", "bound store browser profile"],
+      "normalization": "Authorize with sycmcli, execute the returned registered workflow in ecommerce Chrome, and read the changed object back. Individual workflows require live validation."
+    },
+    {
       "capability_id": "workspace.files-export",
       "status": "tested",
       "implementation": {"kind": "cli-managed", "capability": "sycmcli JSON, CSV, and XLSX export"},

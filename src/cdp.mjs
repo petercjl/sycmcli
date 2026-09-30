@@ -82,20 +82,38 @@ export async function ensureBrowser(store, { openLogin = false } = {}) {
 }
 
 export async function ensureSycmPage(cdpUrl) {
+  return ensureServicePage(cdpUrl, { entryUrl: SYCM_URL, hosts: ['sycm.taobao.com'], label: 'Shengyicanmou' });
+}
+
+export async function ensureServicePage(cdpUrl, { entryUrl, hosts, matchPath, label = 'service' }) {
   const targets = await cdpJson(cdpUrl, '/json/list');
-  let target = targets.find((item) => item.type === 'page' && /^https:\/\/sycm\.taobao\.com\//.test(item.url));
+  const matches = (item) => {
+    if (item.type !== 'page') return false;
+    try { const url = new URL(item.url); return hosts.includes(url.hostname) && (!matchPath || url.pathname.startsWith(matchPath)); } catch { return false; }
+  };
+  let target = targets.find(matches);
+  let created = false;
   if (!target) {
     try {
-      target = await cdpJson(cdpUrl, `/json/new?${encodeURIComponent(SYCM_URL)}`, { method: 'PUT' });
+      target = await cdpJson(cdpUrl, `/json/new?${encodeURIComponent(entryUrl)}`, { method: 'PUT' });
+      created = true;
+      const deadline = Date.now() + 8000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const refreshed = await cdpJson(cdpUrl, '/json/list');
+        const loaded = refreshed.find(matches);
+        if (loaded) { target = loaded; break; }
+      }
     } catch (error) {
-      throw new CliError('SYCM_PAGE_MISSING', 'No Shengyicanmou page is open and a new one could not be created.', { details: error.message, hint: `Open ${SYCM_URL} in the configured Chrome.` });
+      throw new CliError('SERVICE_PAGE_MISSING', `No ${label} page is open and a new one could not be created.`, { details: error.message, hint: `Open ${entryUrl} in the configured Chrome.` });
     }
   }
+  if (created) await new Promise((resolve) => setTimeout(resolve, 500));
   return target;
 }
 
-export async function evaluate(cdpUrl, expression, { timeoutMs = 30000 } = {}) {
-  const target = await ensureSycmPage(cdpUrl);
+export async function evaluate(cdpUrl, expression, { timeoutMs = 30000, page } = {}) {
+  const target = page ? await ensureServicePage(cdpUrl, page) : await ensureSycmPage(cdpUrl);
   if (!target.webSocketDebuggerUrl) throw new CliError('CDP_TARGET_INVALID', 'The Shengyicanmou page has no debuggable WebSocket target.');
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(target.webSocketDebuggerUrl);
@@ -149,25 +167,79 @@ export async function pageFetch(cdpUrl, request, { timeoutMs = 45000 } = {}) {
   const serialized = JSON.stringify(request);
   const expression = `(async () => {
     const request = ${serialized};
-    if (location.host !== 'sycm.taobao.com') return { __sycmcliError: { code: 'AUTH_REQUIRED', message: 'The data page is not on sycm.taobao.com.' } };
+    const allowedHosts = request.hosts || ['sycm.taobao.com'];
+    if (!allowedHosts.includes(location.host)) return { __sycmcliError: { code: 'AUTH_REQUIRED', message: 'The active page is not on an authorized service host.' } };
     const meta = globalThis.metaCacheData || globalThis.g_config || {};
     const token = meta.legalityToken || meta.token || new URLSearchParams(location.search).get('token') || '';
+    const payload = { ...(request.params || {}) };
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(request.params || {})) {
-      if (value !== undefined && value !== null) params.set(key, String(value));
+      if (value !== undefined && value !== null) params.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
     }
-    if (request.useToken !== false && token) {
+    if ((request.tokenStrategy || 'sycm-meta') === 'sycm-meta' && request.useToken !== false && token) {
       params.set('_', String(Date.now()));
       params.set('token', token);
     }
+    if (request.tokenStrategy === 'dmp-magix') {
+      const startedAt = Date.now();
+      let dmpToken = ''; let csrfId = '';
+      while (Date.now() - startedAt < 20000 && (!dmpToken || !csrfId)) {
+        dmpToken = ((document.cookie.split(/\s*;\s*/).find((value) => value.startsWith('_tb_token_=')) || '').slice(11));
+        let Magix = globalThis.Magix;
+        try {
+          if (!Magix?.config && globalThis.seajs?.cache) for (const item of Object.values(globalThis.seajs.cache)) { const candidate = item?.exports?.default || item?.exports; if (candidate?.config) { Magix = candidate; break; } }
+        } catch {}
+        const user = Magix?.config?.('dmp-new.user') || Magix?.config?.('mx.user') || {};
+        csrfId = user.csrfId || user.accessInfo?.csrfId || '';
+        if (!dmpToken || !csrfId) await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      if (!dmpToken || !csrfId) return { __sycmcliError: { code: 'AUTH_REQUIRED', message: !dmpToken ? 'DMP login token is unavailable.' : 'DMP CSRF context is unavailable.' } };
+      params.set('bizCode', 'dmp'); params.set('_tb_token_', dmpToken); params.set('_csrf', csrfId); params.set('csrfId', csrfId);
+    }
+    if (request.tokenStrategy === 'taobao-cookie') {
+      const taobaoToken = globalThis._tb_token_ || globalThis.window?._tb_token_ || ((document.cookie.match(/(?:^|;\s*)_tb_token_=([^;]+)/) || [])[1]) || '';
+      if (!taobaoToken) return { __sycmcliError: { code: 'AUTH_REQUIRED', message: 'Taobao seller login token is unavailable.' } };
+      params.set('_tb_token_', taobaoToken);
+    }
     await new Promise((resolve) => setTimeout(resolve, 350 + Math.floor(Math.random() * 650)));
-    const url = request.path + (params.size ? '?' + params.toString() : '');
+    let url = (request.origin || '') + request.path;
+    const method = request.method || 'GET';
+    const headers = { Accept: 'application/json, text/plain, */*', ...(request.headers || {}) };
+    let body;
+    if (method === 'GET') url += params.size ? '?' + params.toString() : '';
+    else {
+      if (request.encoding === 'json') {
+        headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+        body = request.rawBody !== undefined ? request.rawBody : JSON.stringify(payload);
+      } else {
+        headers['Content-Type'] = headers['Content-Type'] || 'application/x-www-form-urlencoded;charset=UTF-8';
+        body = request.rawBody !== undefined ? request.rawBody : params.toString();
+      }
+    }
+    if (request.tokenStrategy === 'alimama-access' && request.path !== '/member/checkAccess.json') {
+      let accessResponse;
+      try {
+        accessResponse = await fetch('/member/checkAccess.json', { method: 'POST', credentials: 'include', headers: { Accept: 'application/json, text/plain, */*', 'Content-Type': 'application/json' }, body: JSON.stringify({ bizCode: 'universalBP' }) });
+        const access = await accessResponse.json();
+        const accessData = access?.data || access?.result || access;
+        const accessInfo = accessData?.accessInfo || accessData;
+        const csrfId = accessInfo?.csrfId || accessInfo?.csrfID;
+        const loginPointId = accessData?.loginPointId;
+        if (csrfId && !params.has('csrfId')) params.set('csrfId', String(csrfId));
+        if (loginPointId && !params.has('loginPointId')) params.set('loginPointId', String(loginPointId));
+        if (csrfId && payload.csrfId === undefined) payload.csrfId = String(csrfId);
+        if (loginPointId && payload.loginPointId === undefined) payload.loginPointId = String(loginPointId);
+        if (method !== 'GET' && request.rawBody === undefined) body = request.encoding === 'json' ? JSON.stringify(payload) : params.toString();
+      } catch (error) {
+        return { __sycmcliError: { code: 'AUTH_REQUIRED', message: 'Alimama access check failed: ' + String(error && error.message || error) } };
+      }
+    }
     const controller = new AbortController();
     const requestTimeoutMs = request.requestTimeoutMs || 20000;
     let response;
     try {
       response = await Promise.race([
-        fetch(url, { credentials: 'include', headers: { Accept: 'application/json, text/plain, */*' }, signal: controller.signal }),
+        fetch(url, { method, credentials: 'include', headers, ...(body !== undefined ? { body } : {}), signal: controller.signal }),
         new Promise((resolve) => setTimeout(() => { controller.abort(); resolve({ __sycmcliTimeout: true }); }, requestTimeoutMs))
       ]);
     } catch (error) {
@@ -176,18 +248,24 @@ export async function pageFetch(cdpUrl, request, { timeoutMs = 45000 } = {}) {
     if (response && response.__sycmcliTimeout) return { __sycmcliError: { code: 'SYCM_REQUEST_TIMEOUT', message: 'SYCM request timed out.' } };
     const contentType = response.headers.get('content-type') || '';
     const text = await response.text();
-    if (!response.ok) return { __sycmcliError: { code: response.status === 401 || response.status === 403 ? 'AUTH_OR_RISK_CHALLENGE' : 'SYCM_HTTP_ERROR', message: 'SYCM returned HTTP ' + response.status, status: response.status } };
+    if (!response.ok) return { __sycmcliError: { code: response.status === 401 || response.status === 403 ? 'AUTH_OR_RISK_CHALLENGE' : 'SERVICE_HTTP_ERROR', message: 'Service returned HTTP ' + response.status, status: response.status } };
     if (!contentType.includes('json') && /login|登录|验证码|滑块|安全验证|punish/i.test(text)) return { __sycmcliError: { code: 'AUTH_OR_RISK_CHALLENGE', message: 'SYCM requested login or risk verification.' } };
-    let body;
-    try { body = JSON.parse(text); } catch { return { __sycmcliError: { code: 'SYCM_INVALID_RESPONSE', message: 'SYCM did not return JSON.' } }; }
-    if (body && body.code !== undefined && Number(body.code) !== 0) {
-      const message = body.message || body.msg || ('SYCM API code=' + body.code);
+    let responseBody;
+    try { responseBody = JSON.parse(text); } catch { return { __sycmcliError: { code: 'SERVICE_INVALID_RESPONSE', message: 'Service did not return JSON.' } }; }
+    if (responseBody && responseBody.code !== undefined && ![0, 200, '0', '200'].includes(responseBody.code)) {
+      const message = responseBody.message || responseBody.msg || ('Service API code=' + responseBody.code);
       const risk = /login|登录|验证码|滑块|安全|权限|token|会话|过期/i.test(message);
-      return { __sycmcliError: { code: risk ? 'AUTH_OR_RISK_CHALLENGE' : 'SYCM_API_ERROR', message, apiCode: body.code } };
+      return { __sycmcliError: { code: risk ? 'AUTH_OR_RISK_CHALLENGE' : 'SERVICE_API_ERROR', message, apiCode: responseBody.code } };
     }
-    return body;
+    if (responseBody?.info?.ok === false || responseBody?.success === false) {
+      const message = responseBody?.info?.message || responseBody?.message || 'Service reported an unsuccessful response.';
+      const risk = /login|登录|验证码|滑块|安全|权限|token|会话|过期/i.test(message);
+      return { __sycmcliError: { code: risk ? 'AUTH_OR_RISK_CHALLENGE' : 'SERVICE_API_ERROR', message, apiCode: responseBody?.info?.errorCode ?? responseBody?.code } };
+    }
+    return responseBody;
   })()`;
-  const result = await evaluate(cdpUrl, expression, { timeoutMs });
+  const page = request.entryUrl ? { entryUrl: request.entryUrl, hosts: request.hosts, matchPath: request.matchPath, label: request.service || 'service' } : undefined;
+  const result = await evaluate(cdpUrl, expression, { timeoutMs, page });
   if (result?.__sycmcliError) {
     const { code, message, ...details } = result.__sycmcliError;
     throw new CliError(code, message, { details, hint: code === 'AUTH_OR_RISK_CHALLENGE' ? 'Complete verification in the configured Chrome; sycmcli will not bypass it.' : undefined });

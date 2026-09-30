@@ -20,6 +20,30 @@
       "normalization": "Run the CLI-generated page function inside the named profile, then normalize it with sycmcli host complete. Real SealSeek execution remains pending user validation."
     },
     {
+      "capability_id": "business.analysis-local",
+      "status": "implemented-user-validation-pending",
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli deterministic analysis runner"},
+      "features": ["local-json-input", "deterministic-calculation", "structured-result"],
+      "permissions": ["user-provided or collected local JSON"],
+      "normalization": "Use the shared analyze run JSON contract. Real SealSeek validation is pending."
+    },
+    {
+      "capability_id": "browser.registered-data-read",
+      "status": "implemented-user-validation-pending",
+      "implementation": {"kind": "agent-native", "capability": "SealSeek persistent browser navigation and JavaScript evaluate"},
+      "features": ["operation-allowlist", "first-party-page", "page-javascript-evaluate", "structured-result"],
+      "permissions": ["user-selected store profile", "registered first-party service page"],
+      "normalization": "Execute the CLI-returned script unchanged and pass its JSON result to host complete. Real SealSeek validation is pending."
+    },
+    {
+      "capability_id": "business.mutation-plan-apply",
+      "status": "implemented-framework-workflow-validation-pending",
+      "implementation": {"kind": "hybrid", "capability": "sycmcli plan authorization plus registered SealSeek browser workflow"},
+      "features": ["payload-digest", "short-expiry", "confirmation-code", "identity-binding", "idempotency-key", "audit-log", "post-write-readback"],
+      "permissions": ["exact user-confirmed plan", "bound store browser profile"],
+      "normalization": "Authorize with sycmcli, execute the returned registered workflow, and read the changed object back. Individual workflows require live validation."
+    },
+    {
       "capability_id": "workspace.files-export",
       "status": "implemented",
       "implementation": {"kind": "cli-managed", "capability": "sycmcli JSON, CSV, and XLSX export"},

@@ -4,7 +4,7 @@
   "skill": "sycmcli",
   "target_platforms": ["codex", "sealseek"],
   "normalized_result_fields": ["ok", "store", "identity", "fetchedAt", "data", "export", "error"],
-  "standard_errors": ["CAPABILITY_UNAVAILABLE", "AUTH_REQUIRED", "AUTH_OR_RISK_CHALLENGE", "BROWSER_UNAVAILABLE", "STORE_IDENTITY_MISMATCH", "OUTPUT_EXISTS", "SYCM_REQUEST_TIMEOUT", "UPDATE_PREFIX_UNRESOLVED"],
+  "standard_errors": ["CAPABILITY_UNAVAILABLE", "AUTH_REQUIRED", "AUTH_OR_RISK_CHALLENGE", "BROWSER_UNAVAILABLE", "STORE_IDENTITY_MISMATCH", "OUTPUT_EXISTS", "SYCM_REQUEST_TIMEOUT", "UPDATE_PREFIX_UNRESOLVED", "UNKNOWN_OPERATION", "PLAN_EXPIRED", "PLAN_TAMPERED", "CONFIRMATION_FAILED"],
   "capabilities": [
     {
       "id": "command.execute",
@@ -23,6 +23,33 @@
       "input_fields": ["store_alias", "browser_mode", "cdp_url", "browser_profile"],
       "output_fields": ["authenticated", "store_alias", "identity"],
       "side_effects": {"external_mutation": true, "may_cost_money": false, "authorization": "user-selected-store-session"}
+    },
+    {
+      "id": "business.analysis-local",
+      "purpose": "Produce reproducible category, item, shop, competitor, fluctuation, and period analyses from collected JSON without another model call.",
+      "required": false,
+      "required_features": ["local-json-input", "deterministic-calculation", "structured-result"],
+      "input_fields": ["capability_id", "input_json"],
+      "output_fields": ["metrics", "rankings", "anomalies", "report"],
+      "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "local-analysis"}
+    },
+    {
+      "id": "browser.registered-data-read",
+      "purpose": "Execute a packaged first-party data operation inside the selected authenticated browser without exporting session credentials.",
+      "required": true,
+      "required_features": ["operation-allowlist", "first-party-page", "page-javascript-evaluate", "structured-result"],
+      "input_fields": ["operation_id", "parameters", "store_alias"],
+      "output_fields": ["operation", "service", "response"],
+      "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "selected-store-session"}
+    },
+    {
+      "id": "business.mutation-plan-apply",
+      "purpose": "Plan and explicitly authorize one registered publishing or modification workflow for the bound store.",
+      "required": false,
+      "required_features": ["payload-digest", "short-expiry", "confirmation-code", "identity-binding", "idempotency-key", "audit-log", "post-write-readback"],
+      "input_fields": ["capability_id", "payload", "store_alias", "confirmation_code"],
+      "output_fields": ["plan_id", "authorized_task", "verification"],
+      "side_effects": {"external_mutation": true, "may_cost_money": "operation-dependent", "authorization": "exact-plan-explicit-confirmation"}
     },
     {
       "id": "workspace.files-export",

@@ -3,16 +3,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseArgs, requireFlag, integerFlag, booleanFlag } from './args.mjs';
 import { capabilities } from './capabilities.mjs';
+import { runAnalysis } from './analysis-runner.mjs';
+import { businessCapabilities, findBusinessCapability, mutationCapabilities } from './business-capabilities.mjs';
 import { browserIdentity, ensureBrowser, isCdpReady } from './cdp.mjs';
 import { configRoot, currentStore, listStores, publicStore, readStore, resolveStore, setCurrentStore, updateStore, writeStore } from './config.mjs';
 import { CliError, invariant } from './errors.mjs';
 import { writeOutput } from './export.mjs';
+import { buildRegisteredHostScript, readJsonObject, runRegisteredOperation } from './data-runner.mjs';
 import { buildHostBrowserScript, completeHostResult, readHostPayload } from './host-browser.mjs';
+import { createMutationPlan, authorizeMutationPlan, readMutationPlan } from './mutation-plans.mjs';
+import { getOperation, getService, listOperations } from './operation-registry.mjs';
 import { installSkill, skillSource, skillStatus } from './skill-manager.mjs';
 import { categorySearch, categoryTree, itemRank, keywordRank, mainCategory, priceSegments, wordCategory, wordOverview, wordRelated, wordTrend } from './sycm.mjs';
 import { autoUpdateIfNeeded, checkForUpdate, currentInstallPrefix, installUpdate, readUpdateState, writeUpdateState } from './update-manager.mjs';
 
-const HELP = `sycmcli — read-only Shengyicanmou market data CLI
+const HELP = `sycmcli — Taobao/Tmall business data and guarded operations CLI
 
 Usage:
   sycmcli stores add <alias> [--mode managed|attached|host] [--cdp-url http://127.0.0.1:9223]
@@ -25,6 +30,13 @@ Usage:
   sycmcli price segments [--cate-id ID]
   sycmcli keyword rank [--cate-id ID] [--keyword text]
   sycmcli word overview|trend|related|category --keyword <text>
+  sycmcli data operations
+  sycmcli data run <operation-id> --params-json <json-or-file> [--store <alias>]
+  sycmcli business list | show <capability-id>
+  sycmcli analyze run <capability-id> --input-json <json-or-file> [--out <file>]
+  sycmcli mutation plan <capability-id> --params-json <json-or-file> [--store <alias>]
+  sycmcli mutation show <plan-id>
+  sycmcli mutation apply <plan-id> --confirm <code> [--store <alias>]
   sycmcli capabilities --json
   sycmcli doctor --json
   sycmcli skill source|status|install|update [--agent codex|sealseek|agents|openclaw]
@@ -187,6 +199,75 @@ function operationFor(command, action) {
   })[key] || null;
 }
 
+async function handleData(action, rest, flags) {
+  if (action === 'operations') return output({ ok: true, operations: listOperations() });
+  invariant(action === 'run', 'UNKNOWN_COMMAND', `Unknown data command: ${action || ''}`, { exitCode: 2 });
+  const operationId = rest[0];
+  invariant(operationId, 'MISSING_ARGUMENT', 'data run requires an operation ID.', { exitCode: 2 });
+  const operation = getOperation(operationId);
+  const service = getService(operation.service);
+  const params = readJsonObject(flags['params-json']);
+  const selectedStore = resolveStore(flags);
+  if (selectedStore.mode === 'host' || flags.transport === 'host') {
+    return output({
+      ok: true, action: 'browser.evaluate', store: publicStore(selectedStore),
+      platform: String(flags.platform || selectedStore.platform || 'sealseek'),
+      browserProfile: String(flags['browser-profile'] || selectedStore.browserProfile || selectedStore.alias),
+      url: service.entryUrl, script: buildRegisteredHostScript(operationId, params, selectedStore.identity),
+      completion: { command: `sycmcli host complete --store ${selectedStore.alias} --transport host` }
+    });
+  }
+  const meta = await authenticatedStore(flags);
+  const result = await runRegisteredOperation(meta.cdpUrl, operationId, params);
+  await finishData(result, flags, meta);
+}
+
+function handleBusiness(action, rest) {
+  if (action === 'list') return output({ ok: true, count: businessCapabilities.length, capabilities: businessCapabilities, mutations: mutationCapabilities });
+  if (action === 'show') {
+    const id = rest[0];
+    invariant(id, 'MISSING_ARGUMENT', 'business show requires a capability ID.', { exitCode: 2 });
+    const capability = findBusinessCapability(id);
+    invariant(capability, 'CAPABILITY_NOT_FOUND', `Unknown business capability: ${id}`, { exitCode: 2 });
+    return output({ ok: true, capability });
+  }
+  throw new CliError('UNKNOWN_COMMAND', `Unknown business command: ${action || ''}`, { exitCode: 2 });
+}
+
+async function handleAnalyze(action, rest, flags) {
+  invariant(action === 'run', 'UNKNOWN_COMMAND', `Unknown analyze command: ${action || ''}`, { exitCode: 2 });
+  const capabilityId = rest[0];
+  invariant(capabilityId, 'MISSING_ARGUMENT', 'analyze run requires a capability ID.', { exitCode: 2 });
+  const result = runAnalysis(capabilityId, readJsonObject(flags['input-json']));
+  if (flags.out) {
+    const exported = await writeOutput(result, String(flags.out), { format: flags.format && String(flags.format), force: booleanFlag(flags, 'force') });
+    return output({ ok: true, capabilityId, export: exported });
+  }
+  return output({ ok: true, capabilityId, data: result });
+}
+
+async function handleMutation(action, rest, flags) {
+  if (action === 'show') {
+    const planId = rest[0];
+    invariant(planId, 'MISSING_ARGUMENT', 'mutation show requires a plan ID.', { exitCode: 2 });
+    const plan = readMutationPlan(planId);
+    return output({ ok: true, plan: { ...plan, payload: undefined, confirmationDigest: undefined, payloadFields: Object.keys(plan.payload || {}).sort() } });
+  }
+  const planIdOrCapability = rest[0];
+  invariant(planIdOrCapability, 'MISSING_ARGUMENT', `mutation ${action || ''} requires an identifier.`, { exitCode: 2 });
+  let store = resolveStore(flags);
+  if (!store.identity && store.mode !== 'host') store = (await authenticatedStore(flags)).store;
+  if (action === 'plan') {
+    const payload = readJsonObject(flags['params-json']);
+    return output({ ok: true, plan: createMutationPlan({ capabilityId: planIdOrCapability, store, payload }) });
+  }
+  if (action === 'apply') {
+    const confirmationCode = requireFlag(flags, 'confirm');
+    return output({ ok: true, authorized: authorizeMutationPlan({ planId: planIdOrCapability, confirmationCode, store }) });
+  }
+  throw new CliError('UNKNOWN_COMMAND', `Unknown mutation command: ${action || ''}`, { exitCode: 2 });
+}
+
 async function prepareHostTask(store, operation, flags) {
   const options = dataOptions(flags);
   if (operation === 'category-search') {
@@ -222,11 +303,15 @@ export async function main(argv) {
     }
   }
   if (command === 'capabilities') { output(capabilities, flags); return; }
+  if (command === 'business') return handleBusiness(action, rest);
+  if (command === 'analyze') return handleAnalyze(action, rest, flags);
   if (command === 'doctor') { const result = await doctor(); output(result, flags); if (!result.ok) process.exitCode = 1; return; }
   if (command === 'stores') return handleStores(action, rest, flags);
   if (command === 'auth') return handleAuth(action, flags);
   if (command === 'skill') return handleSkill(action, flags);
   if (command === 'update') return handleUpdate(action, flags);
+  if (command === 'data') return handleData(action, rest, flags);
+  if (command === 'mutation') return handleMutation(action, rest, flags);
   if (command === 'host' && action === 'complete') {
     const store = resolveStore(flags);
     invariant(store.mode === 'host' || flags.transport === 'host', 'INVALID_STORE_MODE', 'host complete requires a host-mode store or --transport host.');
