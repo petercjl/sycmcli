@@ -1,0 +1,37 @@
+{
+  "schema": "portable-skill-adapter",
+  "schema_version": "1.0.0",
+  "platform": "codex",
+  "mappings": [
+    {
+      "capability_id": "command.execute",
+      "status": "tested",
+      "implementation": {"kind": "agent-native", "capability": "local terminal command execution"},
+      "features": ["working-directory", "argument-array", "exit-code", "stdout-stderr", "timeout"],
+      "permissions": ["local sycmcli execution"],
+      "normalization": "Parse sycmcli JSON stdout and structured JSON stderr without exposing browser credentials.",
+      "tested_date": "2026-09-30",
+      "evidence": ["Codex executed category, item-rank, price-segment, keyword-rank, related-word, and word-category commands against the authorized 9223 Chrome session."]
+    },
+    {
+      "capability_id": "browser.session-user-login",
+      "status": "tested",
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli store profile and loopback CDP connection"},
+      "features": ["loopback-cdp", "persistent-profile", "visible-user-login", "identity-binding"],
+      "permissions": ["user-selected local Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "Return only a safe shop identity summary; cookies and legality tokens stay inside Chrome.",
+      "tested_date": "2026-09-30",
+      "evidence": ["Codex bound the shanju alias to an existing authenticated loopback CDP session and enforced its stable identity."]
+    },
+    {
+      "capability_id": "workspace.files-export",
+      "status": "tested",
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli JSON, CSV, and XLSX export"},
+      "features": ["absolute-path", "existence-check", "json", "csv", "xlsx"],
+      "permissions": ["user-requested output path"],
+      "normalization": "Return output path, format, size, and permissions; refuse implicit overwrite.",
+      "tested_date": "2026-09-30",
+      "evidence": ["Automated tests wrote all three formats and verified overwrite refusal."]
+    }
+  ]
+}

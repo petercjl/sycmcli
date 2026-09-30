@@ -1,0 +1,31 @@
+{
+  "schema": "portable-skill-adapter",
+  "schema_version": "1.0.0",
+  "platform": "sealseek",
+  "mappings": [
+    {
+      "capability_id": "command.execute",
+      "status": "implemented",
+      "implementation": {"kind": "agent-native", "capability": "SealSeek shell command execution"},
+      "features": ["working-directory", "argument-array", "exit-code", "stdout-stderr", "timeout"],
+      "permissions": ["local sycmcli execution"],
+      "normalization": "Parse the shared sycmcli JSON contract. Real SealSeek execution remains pending user validation."
+    },
+    {
+      "capability_id": "browser.session-user-login",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli visible Chrome login and loopback CDP"},
+      "features": ["loopback-cdp", "persistent-profile", "visible-user-login", "identity-binding"],
+      "permissions": ["user-selected local Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "Let sycmcli own the browser profile and identity check. Real SealSeek execution remains pending user validation."
+    },
+    {
+      "capability_id": "workspace.files-export",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli JSON, CSV, and XLSX export"},
+      "features": ["absolute-path", "existence-check", "json", "csv", "xlsx"],
+      "permissions": ["user-requested output path"],
+      "normalization": "Use the shared CLI export contract and surface overwrite refusal. Real SealSeek execution remains pending user validation."
+    }
+  ]
+}

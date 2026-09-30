@@ -1,0 +1,4 @@
+interface:
+  display_name: "生意参谋只读取数"
+  short_description: "按店铺读取生意参谋市场排行、类目和搜索词数据"
+  default_prompt: "Use sycmcli to retrieve authorized Shengyicanmou market data for the user-selected store, verify completeness, and then analyze it."

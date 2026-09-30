@@ -1,0 +1,47 @@
+{
+  "name": "@petercjl/sycmcli",
+  "version": "0.1.0",
+  "description": "Read-only Shengyicanmou market data CLI with multi-store browser authentication and portable Agent skill",
+  "type": "module",
+  "bin": {
+    "sycmcli": "scripts/sycmcli.mjs"
+  },
+  "exports": "./src/index.mjs",
+  "files": [
+    "scripts",
+    "src",
+    "skill",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check scripts/sycmcli.mjs && node --check src/*.mjs",
+    "prepack": "npm run check && npm test"
+  },
+  "keywords": [
+    "sycm",
+    "shengyicanmou",
+    "taobao",
+    "tmall",
+    "cli",
+    "agent-skill"
+  ],
+  "author": "Peter Chen",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/petercjl/sycmcli.git"
+  },
+  "homepage": "https://github.com/petercjl/sycmcli#readme",
+  "bugs": {
+    "url": "https://github.com/petercjl/sycmcli/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "write-excel-file": "^4.1.1",
+    "ws": "^8.18.0"
+  }
+}

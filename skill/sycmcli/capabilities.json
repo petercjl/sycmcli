@@ -1,0 +1,37 @@
+{
+  "schema": "portable-skill-capabilities",
+  "schema_version": "1.0.0",
+  "skill": "sycmcli",
+  "target_platforms": ["codex", "sealseek"],
+  "normalized_result_fields": ["ok", "store", "identity", "fetchedAt", "data", "export", "error"],
+  "standard_errors": ["CAPABILITY_UNAVAILABLE", "AUTH_REQUIRED", "AUTH_OR_RISK_CHALLENGE", "BROWSER_UNAVAILABLE", "STORE_IDENTITY_MISMATCH", "OUTPUT_EXISTS", "SYCM_REQUEST_TIMEOUT"],
+  "capabilities": [
+    {
+      "id": "command.execute",
+      "purpose": "Execute the installed sycmcli runtime with argument-safe local process control and structured stdout/stderr.",
+      "required": true,
+      "required_features": ["working-directory", "argument-array", "exit-code", "stdout-stderr", "timeout"],
+      "input_fields": ["command", "arguments", "working_directory", "timeout"],
+      "output_fields": ["exit_code", "stdout", "stderr"],
+      "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "read-only-user-request"}
+    },
+    {
+      "id": "browser.session-user-login",
+      "purpose": "Open or attach to a local store-specific Google Chrome profile so the user can complete first-party Shengyicanmou authentication.",
+      "required": true,
+      "required_features": ["loopback-cdp", "persistent-profile", "visible-user-login", "identity-binding"],
+      "input_fields": ["store_alias", "browser_mode", "cdp_url"],
+      "output_fields": ["authenticated", "store_alias", "identity"],
+      "side_effects": {"external_mutation": true, "may_cost_money": false, "authorization": "user-selected-store-session"}
+    },
+    {
+      "id": "workspace.files-export",
+      "purpose": "Write requested JSON, CSV, or XLSX data exports without silently replacing existing files.",
+      "required": false,
+      "required_features": ["absolute-path", "existence-check", "json", "csv", "xlsx"],
+      "input_fields": ["output_path", "format", "replace_authorized"],
+      "output_fields": ["path", "format", "bytes", "mode"],
+      "side_effects": {"external_mutation": true, "may_cost_money": false, "authorization": "explicit-export-request"}
+    }
+  ]
+}
