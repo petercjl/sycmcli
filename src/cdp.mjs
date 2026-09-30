@@ -273,12 +273,27 @@ export async function evaluate(cdpUrl, expression, { timeoutMs = 30000, page } =
   return evaluateTarget(target, expression, timeoutMs);
 }
 
+async function labelTargetPage(target, store) {
+  const title = storePageTitle(store);
+  const expression = `(() => {
+    const title = ${JSON.stringify(title)};
+    const key = '__sycmcliStoreTitleGuard';
+    const previous = globalThis[key];
+    if (previous?.observer) previous.observer.disconnect();
+    const apply = () => { if (document.title !== title) document.title = title; };
+    const observer = new MutationObserver(apply);
+    apply();
+    if (document.documentElement) observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+    globalThis[key] = { title, observer };
+    return { title: document.title, href: location.href, focused: document.hasFocus() };
+  })()`;
+  return evaluateTarget(target, expression, 5000);
+}
+
 export async function labelStorePage(cdpUrl, store) {
   const target = await ensureSycmPage(cdpUrl);
-  const title = storePageTitle(store);
-  const expression = `(() => { document.title = ${JSON.stringify(title)}; return { title: document.title, href: location.href }; })()`;
-  const result = await evaluateTarget(target, expression, 5000);
-  return { title: result?.title || title, page: safePageUrl(result?.href || target.url) };
+  const result = await labelTargetPage(target, store);
+  return { title: result?.title || storePageTitle(store), page: safePageUrl(result?.href || target.url) };
 }
 
 function safePageUrl(value) {
@@ -301,11 +316,21 @@ export async function browserDetails(store) {
   };
   if (status.state !== 'running') return details;
   const targets = await cdpJson(status.cdpUrl, '/json/list');
-  const target = targets.find((item) => item.type === 'page' && safePageUrl(item.url)?.startsWith('https://sycm.taobao.com/')) || targets.find((item) => item.type === 'page');
+  const sycmTarget = targets.find((item) => item.type === 'page' && safePageUrl(item.url)?.startsWith('https://sycm.taobao.com/'));
+  const target = sycmTarget || targets.find((item) => item.type === 'page');
   if (!target) return details;
   let focused = null;
-  try { focused = Boolean(await evaluateTarget(target, 'document.hasFocus()', 3000)); } catch {}
-  return { ...details, page: safePageUrl(target.url), title: target.title || null, focused };
+  let title = target.title || null;
+  let page = safePageUrl(target.url);
+  try {
+    const result = sycmTarget && store.mode === 'managed'
+      ? await labelTargetPage(target, store)
+      : await evaluateTarget(target, '({ focused: document.hasFocus(), title: document.title, href: location.href })', 3000);
+    focused = Boolean(result?.focused);
+    title = result?.title || title;
+    page = safePageUrl(result?.href || target.url);
+  } catch {}
+  return { ...details, page, title, focused };
 }
 
 export async function focusBrowser(store) {
