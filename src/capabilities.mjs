@@ -19,7 +19,7 @@ export const capabilities = {
   },
   coverage: { businessCapabilities: businessCapabilities.length, mutationCapabilities: mutationCapabilities.length, registeredReadOperations: listOperations().length },
   capabilities: [
-    { id: 'sycm.store.manage', commands: ['stores add', 'stores migrate', 'stores list', 'stores use', 'stores show', 'browser open', 'browser status', 'browser stop', 'auth login', 'auth status', 'auth bind'] },
+    { id: 'sycm.store.manage', commands: ['stores add', 'stores migrate', 'stores list', 'stores use', 'stores show', 'stores label', 'browser list', 'browser open', 'browser status', 'browser focus', 'browser stop', 'auth login', 'auth status', 'auth bind'] },
     { id: 'sycm.category.read', commands: ['category search', 'category tree', 'category main'] },
     { id: 'sycm.market.item_rank.read', commands: ['item rank'] },
     { id: 'sycm.market.price_segments.read', commands: ['price segments'] },

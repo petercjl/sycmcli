@@ -9,6 +9,11 @@ sycmcli auth login --store my-shop
 sycmcli auth bind --store my-shop
 
 sycmcli browser status --store my-shop
+sycmcli browser list
+sycmcli browser focus --store my-shop
+
+# Add or change the visible store name for an existing alias
+sycmcli stores label my-shop --display-name "示例店铺"
 
 # Convert a legacy attached or host store to a dedicated managed profile
 sycmcli stores migrate my-shop --mode managed
@@ -18,6 +23,8 @@ sycmcli stores use my-shop
 sycmcli auth login --store my-shop
 sycmcli auth status --store my-shop
 ```
+
+Managed stores always launch full interactive Chrome. `browser list` returns the alias, display name, runtime port, safe page path, visible title, focus state, and `headless`/`interactive` status for every configured store. `browser focus` wakes and activates the exact selected store window. Slider and risk verification remain manual user actions in that visible window.
 
 ## Data commands and result shape
 
@@ -103,4 +110,4 @@ Existing files are refused unless the user explicitly authorizes `--force`.
 
 ## Structured errors
 
-Errors use JSON stderr with a stable `error.code`. Stop codes include `AUTH_REQUIRED`, `AUTH_OR_RISK_CHALLENGE`, `STORE_IDENTITY_MISMATCH`, `CAPABILITY_UNAVAILABLE`, `BROWSER_UNAVAILABLE`, `OUTPUT_EXISTS`, `PLAN_EXPIRED`, `PLAN_TAMPERED`, and `CONFIRMATION_FAILED`.
+Errors use JSON stderr with a stable `error.code`. Stop codes include `AUTH_REQUIRED`, `AUTH_OR_RISK_CHALLENGE`, `STORE_IDENTITY_MISMATCH`, `CAPABILITY_UNAVAILABLE`, `BROWSER_UNAVAILABLE`, `CHROME_PROFILE_INVALID`, `OUTPUT_EXISTS`, `PLAN_EXPIRED`, `PLAN_TAMPERED`, and `CONFIRMATION_FAILED`.

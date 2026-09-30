@@ -8,6 +8,37 @@ import { CliError } from './errors.mjs';
 const SYCM_URL = 'https://sycm.taobao.com/mc/mq/market_monitor.htm';
 const ACTIVE_PORT_FILE = 'DevToolsActivePort';
 const LAUNCH_LOCK_FILE = '.sycmcli-launch.lock';
+const PREFERENCES_FILE = path.join('Default', 'Preferences');
+
+export function storeBrowserLabel(store) {
+  return String(store?.displayName || store?.browserProfile || store?.identity?.displayName || store?.alias || 'sycmcli').trim();
+}
+
+export function storePageTitle(store) {
+  return `【${storeBrowserLabel(store)}】生意参谋`;
+}
+
+function atomicJson(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const temp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${Date.now()}.tmp`);
+  fs.writeFileSync(temp, JSON.stringify(value), { mode: 0o600, flag: 'wx' });
+  fs.renameSync(temp, file);
+}
+
+export function writeChromeProfileName(store) {
+  if (!store?.profileDir) throw new CliError('STORE_CONFIG_INVALID', 'Managed stores require profileDir.');
+  const file = path.join(store.profileDir, PREFERENCES_FILE);
+  let preferences = {};
+  if (fs.existsSync(file)) {
+    try { preferences = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) {
+      throw new CliError('CHROME_PROFILE_INVALID', `Cannot safely update the Chrome profile name for store "${store.alias}".`, { details: error.message, hint: 'Repair or recreate this managed Chrome profile before relaunching it.' });
+    }
+  }
+  const currentProfile = preferences.profile && typeof preferences.profile === 'object' && !Array.isArray(preferences.profile) ? preferences.profile : {};
+  preferences.profile = { ...currentProfile, name: storeBrowserLabel(store), using_default_name: false };
+  atomicJson(file, preferences);
+  return { file, name: preferences.profile.name };
+}
 
 function normalizeCdpUrl(value) {
   const url = new URL(value || 'http://127.0.0.1:9223');
@@ -28,6 +59,10 @@ async function cdpJson(base, route, options = {}) {
 
 export async function isCdpReady(cdpUrl) {
   try { await cdpJson(cdpUrl, '/json/version'); return true; } catch { return false; }
+}
+
+function headlessBrowser(version) {
+  return /HeadlessChrome/i.test(`${version?.Browser || ''} ${version?.['User-Agent'] || ''}`);
 }
 
 function chromeExecutable() {
@@ -62,9 +97,16 @@ export async function browserStatus(store) {
     ? [managedCdpUrl(store), store.cdpUrl]
     : [store.cdpUrl];
   for (const candidate of candidates.filter(Boolean)) {
-    if (await isCdpReady(candidate)) return { state: 'running', cdpUrl: normalizeCdpUrl(candidate), profileDir: store.profileDir || null };
+    try {
+      const version = await cdpJson(candidate, '/json/version');
+      const headless = headlessBrowser(version);
+      return {
+        state: 'running', cdpUrl: normalizeCdpUrl(candidate), profileDir: store.profileDir || null,
+        browser: version.Browser || null, userAgent: version['User-Agent'] || null, headless, interactive: !headless
+      };
+    } catch {}
   }
-  return { state: 'dormant', cdpUrl: null, profileDir: store.profileDir || null };
+  return { state: 'dormant', cdpUrl: null, profileDir: store.profileDir || null, browser: null, userAgent: null, headless: null, interactive: null };
 }
 
 export async function closeBrowser(store) {
@@ -127,6 +169,7 @@ export async function ensureBrowser(store, { openLogin = false } = {}) {
   const status = await browserStatus(store);
   if (status.state === 'running') {
     if (openLogin) await ensureSycmPage(status.cdpUrl);
+    await labelStorePage(status.cdpUrl, store);
     return status.cdpUrl;
   }
   if (store.mode !== 'managed') {
@@ -145,8 +188,10 @@ export async function ensureBrowser(store, { openLogin = false } = {}) {
     const afterLock = await browserStatus(store);
     if (afterLock.state === 'running') {
       if (openLogin) await ensureSycmPage(afterLock.cdpUrl);
+      await labelStorePage(afterLock.cdpUrl, store);
       return afterLock.cdpUrl;
     }
+    writeChromeProfileName(store);
     try { fs.unlinkSync(path.join(store.profileDir, ACTIVE_PORT_FILE)); } catch {}
     const child = childProcess.spawn(chromeExecutable(), [
       '--remote-debugging-port=0',
@@ -158,6 +203,7 @@ export async function ensureBrowser(store, { openLogin = false } = {}) {
     child.unref();
     const endpoint = await waitForManagedBrowser(store);
     if (openLogin) await ensureSycmPage(endpoint);
+    await labelStorePage(endpoint, store);
     return endpoint;
   } finally {
     release();
@@ -195,8 +241,7 @@ export async function ensureServicePage(cdpUrl, { entryUrl, hosts, matchPath, la
   return target;
 }
 
-export async function evaluate(cdpUrl, expression, { timeoutMs = 30000, page } = {}) {
-  const target = page ? await ensureServicePage(cdpUrl, page) : await ensureSycmPage(cdpUrl);
+async function evaluateTarget(target, expression, timeoutMs = 30000) {
   if (!target.webSocketDebuggerUrl) throw new CliError('CDP_TARGET_INVALID', 'The Shengyicanmou page has no debuggable WebSocket target.');
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(target.webSocketDebuggerUrl);
@@ -221,6 +266,61 @@ export async function evaluate(cdpUrl, expression, { timeoutMs = 30000, page } =
     });
     ws.once('error', (error) => { clearTimeout(timer); reject(new CliError('CDP_SOCKET_ERROR', error.message)); });
   });
+}
+
+export async function evaluate(cdpUrl, expression, { timeoutMs = 30000, page } = {}) {
+  const target = page ? await ensureServicePage(cdpUrl, page) : await ensureSycmPage(cdpUrl);
+  return evaluateTarget(target, expression, timeoutMs);
+}
+
+export async function labelStorePage(cdpUrl, store) {
+  const target = await ensureSycmPage(cdpUrl);
+  const title = storePageTitle(store);
+  const expression = `(() => { document.title = ${JSON.stringify(title)}; return { title: document.title, href: location.href }; })()`;
+  const result = await evaluateTarget(target, expression, 5000);
+  return { title: result?.title || title, page: safePageUrl(result?.href || target.url) };
+}
+
+function safePageUrl(value) {
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`;
+  } catch { return null; }
+}
+
+export async function browserDetails(store) {
+  if (store.mode === 'host') {
+    return { alias: store.alias, displayName: storeBrowserLabel(store), mode: store.mode, state: 'external', port: null, profileDir: null, browser: null, headless: null, interactive: null, page: null, title: null, focused: null };
+  }
+  const status = await browserStatus(store);
+  const details = {
+    alias: store.alias, displayName: storeBrowserLabel(store), mode: store.mode, state: status.state,
+    port: status.cdpUrl ? Number(new URL(status.cdpUrl).port) : null, profileDir: store.profileDir || null,
+    browser: status.browser, headless: status.headless, interactive: status.interactive,
+    page: null, title: null, focused: null
+  };
+  if (status.state !== 'running') return details;
+  const targets = await cdpJson(status.cdpUrl, '/json/list');
+  const target = targets.find((item) => item.type === 'page' && safePageUrl(item.url)?.startsWith('https://sycm.taobao.com/')) || targets.find((item) => item.type === 'page');
+  if (!target) return details;
+  let focused = null;
+  try { focused = Boolean(await evaluateTarget(target, 'document.hasFocus()', 3000)); } catch {}
+  return { ...details, page: safePageUrl(target.url), title: target.title || null, focused };
+}
+
+export async function focusBrowser(store) {
+  const cdpUrl = await ensureBrowser(store, { openLogin: true });
+  const target = await ensureSycmPage(cdpUrl);
+  const id = target.id || target.targetId;
+  if (!id) throw new CliError('CDP_TARGET_INVALID', 'The Shengyicanmou page has no target ID.');
+  let response;
+  try { response = await fetch(`${normalizeCdpUrl(cdpUrl)}/json/activate/${encodeURIComponent(id)}`); } catch (error) {
+    throw new CliError('BROWSER_UNAVAILABLE', `Cannot focus Chrome for store "${store.alias}".`, { details: error.message });
+  }
+  if (!response.ok) throw new CliError('CDP_HTTP_ERROR', `Chrome could not activate the selected store page (HTTP ${response.status}).`);
+  await labelStorePage(cdpUrl, store);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  return browserDetails(store);
 }
 
 export async function browserIdentity(cdpUrl) {

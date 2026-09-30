@@ -22,11 +22,13 @@ Use the installed `sycmcli` command as the only business-logic runtime. The npm 
 Codex and SealSeek use the same sycmcli-managed Google Chrome model. Each store alias owns one persistent Chrome profile; browser runtime ports are allocated by Chrome and remain an internal implementation detail.
 
 1. Create the store once: `sycmcli stores add <alias> --display-name "<shop name>"`.
-2. Run `sycmcli auth login --store <alias>`. sycmcli opens or wakes that store's visible Chrome.
+2. Run `sycmcli auth login --store <alias>`. sycmcli opens or wakes that store's full interactive Chrome so the user can complete login, slider challenges, or other first-party verification.
 3. Let the user complete first-party login or verification, then run `sycmcli auth bind --store <alias>`.
 4. Run every later data or mutation command with the exact `--store <alias>`. sycmcli wakes the same profile automatically.
 5. If the session is logged out, stop and tell the user to finish login in the visible store browser. Retry only after the user confirms completion.
 6. If the live shop identity differs from the bound identity, stop on `STORE_IDENTITY_MISMATCH`; never switch, rebind, or continue implicitly.
+
+Each managed browser uses the store display name in its Chrome profile and Shengyicanmou page title. Use `sycmcli browser list` to map open windows to aliases and `sycmcli browser focus --store <alias>` to wake and activate one exact window. The list result includes `headless` and `interactive`; user verification requires `headless=false` and `interactive=true`. Use `sycmcli stores label <alias> --display-name "<shop name>"` to label an older store.
 
 Use `sycmcli browser status --store <alias>` for a read-only runtime check and `sycmcli browser open --store <alias>` to wake the visible browser without running a data request. A dormant browser is normal because its profile persists on disk. Run `sycmcli browser stop --store <alias>` only when the user explicitly asks to close that store browser.
 
@@ -41,6 +43,7 @@ Legacy `attached` and `host` stores remain readable for migration only. Convert 
 - Authentication remains inside the selected local Chrome profile. Never request, print, export, copy, or persist cookies, legality tokens, passwords, or browser storage outside that profile.
 - Stop on login, verification, risk-control, identity mismatch, or permission errors. The user completes first-party verification visibly.
 - Each alias binds to one verified shop identity. `STORE_IDENTITY_MISMATCH` is a hard stop.
+- Never attempt to automate, bypass, or synthesize a slider, CAPTCHA, risk challenge, or first-party verification. Focus the exact interactive store window and wait for the user.
 - Do not overwrite an export without explicit authorization and `--force`.
 
 ## Command routing
@@ -54,6 +57,7 @@ Legacy `attached` and `host` stores remain readable for migration only. Convert 
 - Registered raw reads: `sycmcli data operations` and `sycmcli data run <operation-id> --params-json <json-or-file>`
 - Deterministic local analysis: `sycmcli analyze run <capability-id> --input-json <json-or-file>`
 - Guarded publishing/modification: `sycmcli mutation plan|show|apply`
+- Store-window identification: `sycmcli stores label`, `sycmcli browser list|focus|status|open`
 - Full inputs and outputs: [references/commands.md](references/commands.md)
 
 ## Pagination and completeness

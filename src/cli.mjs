@@ -5,7 +5,7 @@ import { parseArgs, requireFlag, integerFlag, booleanFlag } from './args.mjs';
 import { capabilities } from './capabilities.mjs';
 import { runAnalysis } from './analysis-runner.mjs';
 import { businessCapabilities, findBusinessCapability, mutationCapabilities } from './business-capabilities.mjs';
-import { browserIdentity, browserStatus, closeBrowser, ensureBrowser, isCdpReady } from './cdp.mjs';
+import { browserDetails, browserIdentity, browserStatus, closeBrowser, ensureBrowser, focusBrowser, isCdpReady, labelStorePage } from './cdp.mjs';
 import { configRoot, currentStore, listStores, managedProfileDir, publicStore, readStore, resolveStore, setCurrentStore, updateStore, writeStore } from './config.mjs';
 import { CliError, invariant } from './errors.mjs';
 import { writeOutput } from './export.mjs';
@@ -23,7 +23,9 @@ Usage:
   sycmcli stores add <alias> [--display-name <name>] [--mode managed|attached|host]
   sycmcli stores migrate <alias> --mode managed
   sycmcli stores list | use <alias> | show [alias]
-  sycmcli browser open|status|stop [--store <alias>]
+  sycmcli stores label <alias> --display-name <name>
+  sycmcli browser list
+  sycmcli browser open|status|focus|stop [--store <alias>]
   sycmcli auth login|status|bind [--store <alias>]
   sycmcli category search --keyword <text> [--store <alias>]
   sycmcli category tree | main [--store <alias>]
@@ -59,10 +61,6 @@ function identitySummary(identity) {
 
 function identityMatches(expected, actual) {
   return !expected?.stableId || String(expected.stableId) === String(actual.stableId);
-}
-
-function browserSummary(status) {
-  return { state: status.state };
 }
 
 async function authenticatedStore(flags, { bind = true } = {}) {
@@ -135,6 +133,19 @@ async function handleStores(action, rest, flags) {
     setCurrentStore(alias);
     return output({ ok: true, current: alias });
   }
+  if (action === 'label') {
+    const alias = rest[0];
+    invariant(alias, 'MISSING_ARGUMENT', 'stores label requires an alias.', { exitCode: 2 });
+    const displayName = String(requireFlag(flags, 'display-name')).trim();
+    invariant(displayName, 'INVALID_ARGUMENT', '--display-name cannot be empty.', { exitCode: 2 });
+    const store = updateStore(alias, { displayName });
+    let liveTitle = null;
+    if (store.mode !== 'host') {
+      const status = await browserStatus(store);
+      if (status.state === 'running') liveTitle = await labelStorePage(status.cdpUrl, store);
+    }
+    return output({ ok: true, store: publicStore(store), liveTitle, profileNameAppliesOnNextLaunch: store.mode === 'managed' });
+  }
   if (action === 'show') {
     const alias = rest[0] || flags.store || currentStore();
     invariant(alias, 'STORE_REQUIRED', 'No store selected.');
@@ -151,7 +162,7 @@ async function handleAuth(action, flags) {
   }
   if (action === 'login') {
     await ensureBrowser(store, { openLogin: true });
-    return output({ ok: true, store: store.alias, browser: { state: 'running' }, message: 'The store browser is open. Complete login or verification there, then run auth bind.' });
+    return output({ ok: true, store: store.alias, browser: { ...(await browserDetails(store)), profileDir: publicStore(store).profileDir || null }, message: 'The full interactive store browser is open. Complete login, slider, or verification there, then run auth bind.' });
   }
   if (action === 'status' || action === 'bind') {
     const meta = await authenticatedStore(flags);
@@ -161,13 +172,22 @@ async function handleAuth(action, flags) {
 }
 
 async function handleBrowser(action, flags) {
+  if (action === 'list') {
+    const stores = listStores().filter((store) => !store.invalid);
+    const browsers = await Promise.all(stores.map(async (store) => {
+      const details = await browserDetails(store);
+      return { ...details, profileDir: publicStore(store).profileDir || null };
+    }));
+    return output({ ok: true, current: currentStore(), browsers });
+  }
   const store = resolveStore(flags);
   invariant(store.mode === 'managed', 'INVALID_STORE_MODE', 'Browser lifecycle commands require a managed store.');
-  if (action === 'status') return output({ ok: true, store: publicStore(store), browser: browserSummary(await browserStatus(store)) });
+  if (action === 'status') return output({ ok: true, store: publicStore(store), browser: { ...(await browserDetails(store)), profileDir: publicStore(store).profileDir || null } });
   if (action === 'open') {
     await ensureBrowser(store, { openLogin: true });
-    return output({ ok: true, store: publicStore(store), browser: browserSummary(await browserStatus(store)), message: 'The store browser is open. Complete login if prompted.' });
+    return output({ ok: true, store: publicStore(store), browser: { ...(await browserDetails(store)), profileDir: publicStore(store).profileDir || null }, message: 'The store browser is open in full interactive Chrome. Complete login or slider verification if prompted.' });
   }
+  if (action === 'focus') return output({ ok: true, store: publicStore(store), browser: { ...(await focusBrowser(store)), profileDir: publicStore(store).profileDir || null } });
   if (action === 'stop') return output({ ok: true, store: publicStore(store), browser: await closeBrowser(store) });
   throw new CliError('UNKNOWN_COMMAND', `Unknown browser command: ${action || ''}`, { exitCode: 2 });
 }
@@ -209,7 +229,16 @@ async function doctor() {
     if (store.mode === 'host') checks.push({ id: `browser:${store.alias}`, ok: true, value: `${store.platform}:${store.browserProfile}`, verification: 'agent-runtime-required' });
     else if (store.mode === 'managed') {
       const status = await browserStatus(store);
-      checks.push({ id: `browser:${store.alias}`, ok: Boolean(store.profileDir), value: status.state, profile: publicStore(store).profileDir, verification: status.state === 'running' ? 'runtime-ready' : 'starts-on-demand' });
+      checks.push({
+        id: `browser:${store.alias}`,
+        ok: Boolean(store.profileDir) && status.headless !== true,
+        value: status.state,
+        profile: publicStore(store).profileDir,
+        browser: status.browser,
+        headless: status.headless,
+        interactive: status.interactive,
+        verification: status.state === 'running' ? 'full-browser-runtime-checked' : 'starts-on-demand'
+      });
     } else checks.push({ id: `browser:${store.alias}`, ok: await isCdpReady(store.cdpUrl), value: store.cdpUrl });
   }
   return { ok: checks.every((check) => check.ok), platform: process.platform, arch: process.arch, hostname: os.hostname(), checks };
