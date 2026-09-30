@@ -17,27 +17,20 @@ Use the installed `sycmcli` command as the only business-logic runtime. The npm 
 6. Prefer JSON for analysis; use `--out` only for a requested export. Check identity, counts, pagination, warnings, and completeness.
 7. For a registered external write, create a mutation plan, show the preview and confirmation code to the user, then run `mutation apply` only after the user confirms that exact plan. Execute the returned Agent task in the bound browser and read back the changed object.
 
-## Codex flow
+## Unified browser flow
 
-Codex uses the dedicated ecommerce Chrome at `http://127.0.0.1:9223`.
+Codex and SealSeek use the same sycmcli-managed Google Chrome model. Each store alias owns one persistent Chrome profile; browser runtime ports are allocated by Chrome and remain an internal implementation detail.
 
-1. Configure the alias once: `sycmcli stores add <alias> --mode attached --cdp-url http://127.0.0.1:9223`.
-2. Run `sycmcli auth status --store <alias>`.
-3. If login is required, open the ecommerce browser, let the user sign in to Shengyicanmou, and retry.
-4. Run the data command normally.
+1. Create the store once: `sycmcli stores add <alias> --display-name "<shop name>"`.
+2. Run `sycmcli auth login --store <alias>`. sycmcli opens or wakes that store's visible Chrome.
+3. Let the user complete first-party login or verification, then run `sycmcli auth bind --store <alias>`.
+4. Run every later data or mutation command with the exact `--store <alias>`. sycmcli wakes the same profile automatically.
+5. If the session is logged out, stop and tell the user to finish login in the visible store browser. Retry only after the user confirms completion.
+6. If the live shop identity differs from the bound identity, stop on `STORE_IDENTITY_MISMATCH`; never switch, rebind, or continue implicitly.
 
-## SealSeek flow
+Use `sycmcli browser status --store <alias>` for a read-only runtime check and `sycmcli browser open --store <alias>` to wake the visible browser without running a data request. A dormant browser is normal because its profile persists on disk. Run `sycmcli browser stop --store <alias>` only when the user explicitly asks to close that store browser.
 
-SealSeek uses its native persistent browser and browser `evaluate`; it does not require port 9223.
-
-1. If the store does not exist, configure one browser profile per store: `sycmcli stores add <alias> --mode host --platform sealseek --browser-profile <profile>`.
-2. Open the URL returned by the command with that exact SealSeek browser profile. Let the user sign in when needed.
-3. Run the requested data command. A host-mode store returns a browser task directly. If this machine already uses the same alias for Codex CDP, add `--transport host --browser-profile <profile>`; this reuses the identity binding without using port 9223.
-4. Use SealSeek's native browser with the returned profile and URL, then pass the returned `script` unchanged to browser `evaluate`.
-5. Pass the exact JSON evaluate result to the returned completion command on stdin. Add `--out` only when an export was requested.
-6. Parse the normalized completion result. Never execute a host task in a different profile or bind it to a different alias.
-
-If native browser `evaluate` is unavailable, return `CAPABILITY_UNAVAILABLE`; do not fall back to a guessed Chrome port.
+Legacy `attached` and `host` stores remain readable for migration only. Convert one with `sycmcli stores migrate <alias> --mode managed`, then complete login once in the new managed profile. Do not copy cookies from an Agent-native or shared browser.
 
 ## Safety boundary
 
@@ -45,7 +38,7 @@ If native browser `evaluate` is unavailable, return `CAPABILITY_UNAVAILABLE`; do
 - External writes are limited to registered mutation capabilities and require `mutation plan` followed by confirmation of that exact, unexpired plan. Do not treat general approval as approval for a later concrete mutation.
 - After a write, verify the current shop identity and read the changed object back. Report partial or unverified outcomes explicitly.
 - Deletion, refund, cancellation, account, permission, credential, and payment operations are outside this Skill.
-- Authentication remains in the selected browser profile. Never request, print, export, or persist cookies, legality tokens, passwords, or browser storage.
+- Authentication remains inside the selected local Chrome profile. Never request, print, export, copy, or persist cookies, legality tokens, passwords, or browser storage outside that profile.
 - Stop on login, verification, risk-control, identity mismatch, or permission errors. The user completes first-party verification visibly.
 - Each alias binds to one verified shop identity. `STORE_IDENTITY_MISMATCH` is a hard stop.
 - Do not overwrite an export without explicit authorization and `--force`.

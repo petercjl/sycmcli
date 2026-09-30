@@ -15,13 +15,12 @@
     },
     {
       "capability_id": "browser.session-user-login",
-      "status": "tested",
-      "implementation": {"kind": "cli-managed", "capability": "sycmcli store profile and loopback CDP connection"},
-      "features": ["loopback-cdp", "persistent-profile", "visible-user-login", "page-javascript-evaluate", "identity-binding"],
-      "permissions": ["user-selected local Chrome profile", "authorized Shengyicanmou session"],
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli per-store Chrome profile with dynamic loopback endpoint discovery"},
+      "features": ["per-store-profile", "on-demand-wake", "dynamic-loopback-endpoint", "visible-user-login", "page-javascript-evaluate", "identity-binding"],
+      "permissions": ["sycmcli-managed local Chrome profile", "authorized Shengyicanmou session"],
       "normalization": "Return only a safe shop identity summary; cookies and legality tokens stay inside Chrome.",
-      "tested_date": "2026-09-30",
-      "evidence": ["Codex bound the shanju alias to an existing authenticated loopback CDP session and enforced its stable identity."]
+      "evidence": ["The previous attached-browser flow was tested; the unified managed-profile replacement requires a fresh authenticated Codex run before promotion to tested."]
     },
     {
       "capability_id": "business.analysis-local",
@@ -34,14 +33,14 @@
     {
       "capability_id": "browser.registered-data-read",
       "status": "implemented",
-      "implementation": {"kind": "cli-managed", "capability": "registered page requests over attached Chrome CDP"},
+      "implementation": {"kind": "cli-managed", "capability": "registered page requests inside the selected managed Chrome profile"},
       "features": ["operation-allowlist", "first-party-page", "page-javascript-evaluate", "structured-result"],
-      "permissions": ["attached loopback Chrome", "registered first-party service page"],
-      "normalization": "The CLI selects the service tab, executes only the packaged operation descriptor, and returns structured JSON."
+      "permissions": ["selected managed Chrome profile", "registered first-party service page"],
+      "normalization": "The CLI wakes the selected profile, selects the service tab, executes only the packaged operation descriptor, and returns structured JSON."
     },
     {
       "capability_id": "business.mutation-plan-apply",
-      "status": "implemented-framework-workflow-validation-pending",
+      "status": "implemented",
       "implementation": {"kind": "hybrid", "capability": "sycmcli plan authorization plus registered browser workflow"},
       "features": ["payload-digest", "short-expiry", "confirmation-code", "identity-binding", "idempotency-key", "audit-log", "post-write-readback"],
       "permissions": ["exact user-confirmed plan", "bound store browser profile"],

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { listStores, readStore, setCurrentStore, storeFile, updateStore, writeStore } from '../src/config.mjs';
+import { listStores, managedProfileDir, readStore, setCurrentStore, storeFile, updateStore, writeStore } from '../src/config.mjs';
 
 test('store configuration is isolated, private, and updateable', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sycmcli-config-'));
@@ -20,4 +20,9 @@ test('store configuration is isolated, private, and updateable', (t) => {
 
 test('store alias cannot escape the config root', () => {
   assert.throws(() => writeStore('../escape', {}), /alias/);
+});
+
+test('managed profile location is per-store and uses local app data on Windows', () => {
+  assert.equal(managedProfileDir('shop-a', '/config', {}, 'linux'), path.join('/config', 'stores', 'shop-a', 'chrome-profile'));
+  assert.equal(managedProfileDir('shop-a', 'C:\\config', { LOCALAPPDATA: 'C:\\Local' }, 'win32'), path.join('C:\\Local', 'sycmcli', 'stores', 'shop-a', 'chrome-profile'));
 });

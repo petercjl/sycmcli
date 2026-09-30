@@ -1,12 +1,13 @@
 import childProcess from 'node:child_process';
 import fs from 'node:fs';
-import net from 'node:net';
 import path from 'node:path';
 import process from 'node:process';
 import { WebSocket } from 'ws';
 import { CliError } from './errors.mjs';
 
 const SYCM_URL = 'https://sycm.taobao.com/mc/mq/market_monitor.htm';
+const ACTIVE_PORT_FILE = 'DevToolsActivePort';
+const LAUNCH_LOCK_FILE = '.sycmcli-launch.lock';
 
 function normalizeCdpUrl(value) {
   const url = new URL(value || 'http://127.0.0.1:9223');
@@ -29,23 +30,12 @@ export async function isCdpReady(cdpUrl) {
   try { await cdpJson(cdpUrl, '/json/version'); return true; } catch { return false; }
 }
 
-async function waitForPort(port, timeoutMs = 15000) {
-  const started = Date.now();
-  while (Date.now() - started < timeoutMs) {
-    const ready = await new Promise((resolve) => {
-      const socket = net.createConnection({ host: '127.0.0.1', port });
-      socket.setTimeout(400);
-      socket.once('connect', () => { socket.destroy(); resolve(true); });
-      socket.once('timeout', () => { socket.destroy(); resolve(false); });
-      socket.once('error', () => resolve(false));
-    });
-    if (ready) return;
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new CliError('BROWSER_START_TIMEOUT', `Chrome did not start on port ${port}.`);
-}
-
 function chromeExecutable() {
+  if (process.env.SYCMCLI_CHROME_PATH) {
+    const configured = path.resolve(process.env.SYCMCLI_CHROME_PATH);
+    if (fs.existsSync(configured)) return configured;
+    throw new CliError('CHROME_NOT_FOUND', 'SYCMCLI_CHROME_PATH does not point to an existing Chrome executable.');
+  }
   const candidates = process.platform === 'darwin'
     ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', path.join(process.env.HOME || '', 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome')]
     : process.platform === 'win32'
@@ -56,29 +46,122 @@ function chromeExecutable() {
   return found;
 }
 
+export function parseDevToolsActivePort(text) {
+  const [rawPort] = String(text || '').trim().split(/\r?\n/);
+  const port = Number(rawPort);
+  return Number.isInteger(port) && port >= 1024 && port <= 65535 ? `http://127.0.0.1:${port}` : null;
+}
+
+export function managedCdpUrl(store) {
+  if (!store?.profileDir) return null;
+  try { return parseDevToolsActivePort(fs.readFileSync(path.join(store.profileDir, ACTIVE_PORT_FILE), 'utf8')); } catch { return null; }
+}
+
+export async function browserStatus(store) {
+  const candidates = store.mode === 'managed'
+    ? [managedCdpUrl(store), store.cdpUrl]
+    : [store.cdpUrl];
+  for (const candidate of candidates.filter(Boolean)) {
+    if (await isCdpReady(candidate)) return { state: 'running', cdpUrl: normalizeCdpUrl(candidate), profileDir: store.profileDir || null };
+  }
+  return { state: 'dormant', cdpUrl: null, profileDir: store.profileDir || null };
+}
+
+export async function closeBrowser(store) {
+  const status = await browserStatus(store);
+  if (status.state !== 'running') return { closed: false, state: 'dormant' };
+  const version = await cdpJson(status.cdpUrl, '/json/version');
+  if (!version.webSocketDebuggerUrl) throw new CliError('CDP_TARGET_INVALID', 'Chrome did not expose its browser control endpoint.');
+  await new Promise((resolve, reject) => {
+    const ws = new WebSocket(version.webSocketDebuggerUrl);
+    let settled = false;
+    const finish = () => { if (!settled) { settled = true; clearTimeout(timer); resolve(); } };
+    const timer = setTimeout(() => { if (!settled) { settled = true; ws.terminate(); reject(new CliError('CDP_TIMEOUT', 'Chrome did not acknowledge the close request.')); } }, 5000);
+    ws.once('open', () => ws.send(JSON.stringify({ id: 1, method: 'Browser.close' })));
+    ws.on('message', (chunk) => {
+      let message;
+      try { message = JSON.parse(chunk.toString()); } catch { return; }
+      if (message.id !== 1) return;
+      ws.close();
+      finish();
+    });
+    ws.once('close', finish);
+    ws.once('error', (error) => { if (!settled) { settled = true; clearTimeout(timer); reject(new CliError('CDP_SOCKET_ERROR', error.message)); } });
+  });
+  return { closed: true, state: 'dormant' };
+}
+
+async function waitForManagedBrowser(store, timeoutMs = 15000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const endpoint = managedCdpUrl(store);
+    if (endpoint && await isCdpReady(endpoint)) return endpoint;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new CliError('BROWSER_START_TIMEOUT', `Chrome did not start for store "${store.alias}".`);
+}
+
+async function acquireLaunchLock(store, timeoutMs = 15000) {
+  const lockFile = path.join(store.profileDir, LAUNCH_LOCK_FILE);
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const fd = fs.openSync(lockFile, 'wx', 0o600);
+      fs.writeFileSync(fd, `${process.pid}\n${Date.now()}\n`);
+      fs.closeSync(fd);
+      return () => { try { fs.unlinkSync(lockFile); } catch {} };
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const endpoint = managedCdpUrl(store);
+      if (endpoint && await isCdpReady(endpoint)) return null;
+      try {
+        if (Date.now() - fs.statSync(lockFile).mtimeMs > 30000) fs.unlinkSync(lockFile);
+      } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+  throw new CliError('BROWSER_START_TIMEOUT', `Timed out waiting to launch Chrome for store "${store.alias}".`);
+}
+
 export async function ensureBrowser(store, { openLogin = false } = {}) {
-  const cdpUrl = normalizeCdpUrl(store.cdpUrl || `http://127.0.0.1:${store.port}`);
-  if (await isCdpReady(cdpUrl)) {
-    if (openLogin) await ensureSycmPage(cdpUrl);
-    return cdpUrl;
+  const status = await browserStatus(store);
+  if (status.state === 'running') {
+    if (openLogin) await ensureSycmPage(status.cdpUrl);
+    return status.cdpUrl;
   }
   if (store.mode !== 'managed') {
+    const cdpUrl = normalizeCdpUrl(store.cdpUrl || `http://127.0.0.1:${store.port}`);
     throw new CliError('BROWSER_UNAVAILABLE', `Attached Chrome for store "${store.alias}" is not available at ${cdpUrl}.`, { hint: 'Open the configured browser, or change this store to managed mode.' });
   }
-  const port = Number(store.port || new URL(cdpUrl).port);
   if (!store.profileDir) throw new CliError('STORE_CONFIG_INVALID', 'Managed stores require profileDir.');
   fs.mkdirSync(store.profileDir, { recursive: true, mode: 0o700 });
-  const child = childProcess.spawn(chromeExecutable(), [
-    `--remote-debugging-port=${port}`,
-    `--user-data-dir=${store.profileDir}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-    SYCM_URL
-  ], { detached: true, stdio: 'ignore' });
-  child.unref();
-  await waitForPort(port);
-  if (openLogin) await ensureSycmPage(cdpUrl);
-  return cdpUrl;
+  const release = await acquireLaunchLock(store);
+  if (!release) {
+    const endpoint = await waitForManagedBrowser(store);
+    if (openLogin) await ensureSycmPage(endpoint);
+    return endpoint;
+  }
+  try {
+    const afterLock = await browserStatus(store);
+    if (afterLock.state === 'running') {
+      if (openLogin) await ensureSycmPage(afterLock.cdpUrl);
+      return afterLock.cdpUrl;
+    }
+    try { fs.unlinkSync(path.join(store.profileDir, ACTIVE_PORT_FILE)); } catch {}
+    const child = childProcess.spawn(chromeExecutable(), [
+      '--remote-debugging-port=0',
+      `--user-data-dir=${store.profileDir}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      SYCM_URL
+    ], { detached: true, stdio: 'ignore', windowsHide: false });
+    child.unref();
+    const endpoint = await waitForManagedBrowser(store);
+    if (openLogin) await ensureSycmPage(endpoint);
+    return endpoint;
+  } finally {
+    release();
+  }
 }
 
 export async function ensureSycmPage(cdpUrl) {

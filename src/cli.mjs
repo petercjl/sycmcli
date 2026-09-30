@@ -5,8 +5,8 @@ import { parseArgs, requireFlag, integerFlag, booleanFlag } from './args.mjs';
 import { capabilities } from './capabilities.mjs';
 import { runAnalysis } from './analysis-runner.mjs';
 import { businessCapabilities, findBusinessCapability, mutationCapabilities } from './business-capabilities.mjs';
-import { browserIdentity, ensureBrowser, isCdpReady } from './cdp.mjs';
-import { configRoot, currentStore, listStores, publicStore, readStore, resolveStore, setCurrentStore, updateStore, writeStore } from './config.mjs';
+import { browserIdentity, browserStatus, closeBrowser, ensureBrowser, isCdpReady } from './cdp.mjs';
+import { configRoot, currentStore, listStores, managedProfileDir, publicStore, readStore, resolveStore, setCurrentStore, updateStore, writeStore } from './config.mjs';
 import { CliError, invariant } from './errors.mjs';
 import { writeOutput } from './export.mjs';
 import { buildRegisteredHostScript, readJsonObject, runRegisteredOperation } from './data-runner.mjs';
@@ -20,10 +20,11 @@ import { autoUpdateIfNeeded, checkForUpdate, currentInstallPrefix, installUpdate
 const HELP = `sycmcli — Taobao/Tmall business data and guarded operations CLI
 
 Usage:
-  sycmcli stores add <alias> [--mode managed|attached|host] [--cdp-url http://127.0.0.1:9223]
-                              [--platform sealseek] [--browser-profile <name>]
+  sycmcli stores add <alias> [--display-name <name>] [--mode managed|attached|host]
+  sycmcli stores migrate <alias> --mode managed
   sycmcli stores list | use <alias> | show [alias]
-  sycmcli auth login|status [--store <alias>]
+  sycmcli browser open|status|stop [--store <alias>]
+  sycmcli auth login|status|bind [--store <alias>]
   sycmcli category search --keyword <text> [--store <alias>]
   sycmcli category tree | main [--store <alias>]
   sycmcli item rank [--cate-id ID] [--rank-type gmv|growth|flow|add|newitm_ipv] [--top N]
@@ -52,19 +53,16 @@ function output(value, flags = {}) {
   process.stdout.write(`${JSON.stringify(value, null, flags.json ? 2 : 2)}\n`);
 }
 
-function nextManagedPort(stores) {
-  const used = new Set(stores.map((store) => Number(store.port)).filter(Boolean));
-  let port = 9333;
-  while (used.has(port)) port += 1;
-  return port;
-}
-
 function identitySummary(identity) {
   return { stableId: identity.stableId, displayName: identity.displayName, runAsShopId: identity.runAsShopId, runAsShopTitle: identity.runAsShopTitle, mainUserId: identity.mainUserId, mainUserName: identity.mainUserName };
 }
 
 function identityMatches(expected, actual) {
   return !expected?.stableId || String(expected.stableId) === String(actual.stableId);
+}
+
+function browserSummary(status) {
+  return { state: status.state };
 }
 
 async function authenticatedStore(flags, { bind = true } = {}) {
@@ -108,17 +106,29 @@ async function handleStores(action, rest, flags) {
     if (mode === 'host') {
       const platform = String(flags.platform || 'sealseek');
       invariant(platform === 'sealseek', 'INVALID_ARGUMENT', 'Host browser mode currently supports --platform sealseek.', { exitCode: 2 });
-      value = { mode, platform, browserProfile: String(flags['browser-profile'] || alias), identity: null, createdAt: new Date().toISOString() };
+      value = { mode, platform, browserProfile: String(flags['browser-profile'] || alias), displayName: flags['display-name'] ? String(flags['display-name']) : alias, identity: null, createdAt: new Date().toISOString() };
     } else {
-      const port = flags.port ? integerFlag(flags, 'port', undefined, { min: 1024, max: 65535 }) : (mode === 'managed' ? nextManagedPort(listStores(root)) : Number(new URL(String(flags['cdp-url'] || 'http://127.0.0.1:9223')).port || 80));
-      const cdpUrl = String(flags['cdp-url'] || `http://127.0.0.1:${port}`);
-      value = { mode, cdpUrl, port, ...(mode === 'managed' ? { profileDir: path.join(root, 'stores', alias, 'chrome-profile') } : {}), identity: null, createdAt: new Date().toISOString() };
+      const attachedUrl = String(flags['cdp-url'] || 'http://127.0.0.1:9223');
+      value = mode === 'managed'
+        ? { mode, profileDir: managedProfileDir(alias, root), displayName: flags['display-name'] ? String(flags['display-name']) : alias, identity: null, createdAt: new Date().toISOString() }
+        : { mode, cdpUrl: attachedUrl, port: Number(new URL(attachedUrl).port || 80), displayName: flags['display-name'] ? String(flags['display-name']) : alias, identity: null, createdAt: new Date().toISOString() };
     }
     const store = writeStore(alias, value, root);
     if (!currentStore(root)) setCurrentStore(alias, root);
     return output({ ok: true, store: publicStore(store, root), current: currentStore(root) === alias });
   }
   if (action === 'list') return output({ ok: true, current: currentStore(), stores: listStores().map((store) => publicStore(store)) });
+  if (action === 'migrate') {
+    const alias = rest[0];
+    invariant(alias, 'MISSING_ARGUMENT', 'stores migrate requires an alias.', { exitCode: 2 });
+    invariant(String(flags.mode || '') === 'managed', 'INVALID_ARGUMENT', 'stores migrate currently requires --mode managed.', { exitCode: 2 });
+    const existing = readStore(alias, configRoot());
+    const migrated = updateStore(alias, {
+      mode: 'managed', platform: undefined, browserProfile: undefined, cdpUrl: undefined, port: undefined,
+      profileDir: existing.profileDir || managedProfileDir(alias), migratedAt: new Date().toISOString()
+    });
+    return output({ ok: true, store: publicStore(migrated), loginRequired: true, message: 'The store now uses its own managed Chrome profile. Run auth login and complete first-party login once.' });
+  }
   if (action === 'use') {
     const alias = rest[0];
     invariant(alias, 'MISSING_ARGUMENT', 'stores use requires an alias.', { exitCode: 2 });
@@ -140,14 +150,26 @@ async function handleAuth(action, flags) {
     if (action === 'status') return output({ ok: true, store: store.alias, authenticated: Boolean(store.identity), identity: store.identity || null, verification: store.identity ? 'bound-by-last-successful-fetch' : 'run-one-data-command-to-verify' });
   }
   if (action === 'login') {
-    const cdpUrl = await ensureBrowser(store, { openLogin: true });
-    return output({ ok: true, store: store.alias, cdpUrl, message: 'Chrome is open. Complete login or verification there, then run auth status.' });
+    await ensureBrowser(store, { openLogin: true });
+    return output({ ok: true, store: store.alias, browser: { state: 'running' }, message: 'The store browser is open. Complete login or verification there, then run auth bind.' });
   }
-  if (action === 'status') {
+  if (action === 'status' || action === 'bind') {
     const meta = await authenticatedStore(flags);
-    return output({ ok: true, store: meta.store.alias, cdpUrl: meta.cdpUrl, authenticated: true, identity: identitySummary(meta.identity), bound: true });
+    return output({ ok: true, store: meta.store.alias, authenticated: true, identity: identitySummary(meta.identity), bound: true });
   }
   throw new CliError('UNKNOWN_COMMAND', `Unknown auth command: ${action || ''}`, { exitCode: 2 });
+}
+
+async function handleBrowser(action, flags) {
+  const store = resolveStore(flags);
+  invariant(store.mode === 'managed', 'INVALID_STORE_MODE', 'Browser lifecycle commands require a managed store.');
+  if (action === 'status') return output({ ok: true, store: publicStore(store), browser: browserSummary(await browserStatus(store)) });
+  if (action === 'open') {
+    await ensureBrowser(store, { openLogin: true });
+    return output({ ok: true, store: publicStore(store), browser: browserSummary(await browserStatus(store)), message: 'The store browser is open. Complete login if prompted.' });
+  }
+  if (action === 'stop') return output({ ok: true, store: publicStore(store), browser: await closeBrowser(store) });
+  throw new CliError('UNKNOWN_COMMAND', `Unknown browser command: ${action || ''}`, { exitCode: 2 });
 }
 
 async function handleUpdate(action, flags) {
@@ -185,7 +207,10 @@ async function doctor() {
   ];
   for (const store of stores) {
     if (store.mode === 'host') checks.push({ id: `browser:${store.alias}`, ok: true, value: `${store.platform}:${store.browserProfile}`, verification: 'agent-runtime-required' });
-    else checks.push({ id: `browser:${store.alias}`, ok: await isCdpReady(store.cdpUrl), value: store.cdpUrl });
+    else if (store.mode === 'managed') {
+      const status = await browserStatus(store);
+      checks.push({ id: `browser:${store.alias}`, ok: Boolean(store.profileDir), value: status.state, profile: publicStore(store).profileDir, verification: status.state === 'running' ? 'runtime-ready' : 'starts-on-demand' });
+    } else checks.push({ id: `browser:${store.alias}`, ok: await isCdpReady(store.cdpUrl), value: store.cdpUrl });
   }
   return { ok: checks.every((check) => check.ok), platform: process.platform, arch: process.arch, hostname: os.hostname(), checks };
 }
@@ -307,6 +332,7 @@ export async function main(argv) {
   if (command === 'analyze') return handleAnalyze(action, rest, flags);
   if (command === 'doctor') { const result = await doctor(); output(result, flags); if (!result.ok) process.exitCode = 1; return; }
   if (command === 'stores') return handleStores(action, rest, flags);
+  if (command === 'browser') return handleBrowser(action, flags);
   if (command === 'auth') return handleAuth(action, flags);
   if (command === 'skill') return handleSkill(action, flags);
   if (command === 'update') return handleUpdate(action, flags);

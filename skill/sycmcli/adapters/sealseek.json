@@ -14,14 +14,14 @@
     {
       "capability_id": "browser.session-user-login",
       "status": "implemented",
-      "implementation": {"kind": "agent-native", "capability": "SealSeek persistent browser navigation and JavaScript evaluate"},
-      "features": ["persistent-profile", "visible-user-login", "page-javascript-evaluate", "identity-binding"],
-      "permissions": ["user-selected SealSeek browser profile", "authorized Shengyicanmou session"],
-      "normalization": "Run the CLI-generated page function inside the named profile, then normalize it with sycmcli host complete. Real SealSeek execution remains pending user validation."
+      "implementation": {"kind": "cli-managed", "capability": "sycmcli per-store Chrome profile with dynamic loopback endpoint discovery"},
+      "features": ["per-store-profile", "on-demand-wake", "dynamic-loopback-endpoint", "visible-user-login", "page-javascript-evaluate", "identity-binding"],
+      "permissions": ["sycmcli-managed local Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "SealSeek invokes sycmcli; the CLI wakes the selected profile and returns only safe identity and business data. Profile launch isolation was observed on macOS; authenticated completion remains pending."
     },
     {
       "capability_id": "business.analysis-local",
-      "status": "implemented-user-validation-pending",
+      "status": "implemented",
       "implementation": {"kind": "cli-managed", "capability": "sycmcli deterministic analysis runner"},
       "features": ["local-json-input", "deterministic-calculation", "structured-result"],
       "permissions": ["user-provided or collected local JSON"],
@@ -29,15 +29,15 @@
     },
     {
       "capability_id": "browser.registered-data-read",
-      "status": "implemented-user-validation-pending",
-      "implementation": {"kind": "agent-native", "capability": "SealSeek persistent browser navigation and JavaScript evaluate"},
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "registered page requests inside the selected sycmcli-managed Chrome profile"},
       "features": ["operation-allowlist", "first-party-page", "page-javascript-evaluate", "structured-result"],
-      "permissions": ["user-selected store profile", "registered first-party service page"],
-      "normalization": "Execute the CLI-returned script unchanged and pass its JSON result to host complete. Real SealSeek validation is pending."
+      "permissions": ["selected managed Chrome profile", "registered first-party service page"],
+      "normalization": "Run the shared data command directly. sycmcli wakes the profile, enforces the bound identity, and returns structured JSON. Authenticated SealSeek validation is pending."
     },
     {
       "capability_id": "business.mutation-plan-apply",
-      "status": "implemented-framework-workflow-validation-pending",
+      "status": "implemented",
       "implementation": {"kind": "hybrid", "capability": "sycmcli plan authorization plus registered SealSeek browser workflow"},
       "features": ["payload-digest", "short-expiry", "confirmation-code", "identity-binding", "idempotency-key", "audit-log", "post-write-readback"],
       "permissions": ["exact user-confirmed plan", "bound store browser profile"],

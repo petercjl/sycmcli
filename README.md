@@ -1,6 +1,6 @@
 # sycmcli
 
-`@petercjl/sycmcli` retrieves authorized Taobao/Tmall business data through the user's logged-in browser session. It catalogs 37 Business Manager-compatible data and analysis abilities, exposes a growing allowlist of real Shengyicanmou, Alimama, and DMP read operations, and protects registered write workflows with plan/apply confirmation. Codex uses the dedicated Chrome CDP session; SealSeek uses its native persistent browser. Each store keeps a separate identity binding and browser profile.
+`@petercjl/sycmcli` retrieves authorized Taobao/Tmall business data through the user's logged-in browser session. It catalogs 37 Business Manager-compatible data and analysis abilities, exposes a growing allowlist of real Shengyicanmou, Alimama, and DMP read operations, and protects registered write workflows with plan/apply confirmation. Codex and SealSeek use the same managed-browser model: every store owns one persistent Chrome profile and one bound shop identity.
 
 ## Install
 
@@ -12,23 +12,27 @@ sycmcli doctor --json
 
 Node.js 20 or newer is required.
 
-Codex setup:
+Store setup in Codex or SealSeek:
 
 ```bash
-sycmcli stores add my-shop --mode attached --cdp-url http://127.0.0.1:9223
-sycmcli auth status --store my-shop
+sycmcli stores add my-shop --display-name "My Shop"
+sycmcli auth login --store my-shop
+# Complete login in the visible Chrome, then:
+sycmcli auth bind --store my-shop
 ```
 
-SealSeek setup:
+The browser can be closed normally. Future commands wake the same store profile on demand. Chrome assigns a private ephemeral DevTools port per launch; users and Agents do not configure or reuse a fixed port.
+
+Useful checks:
 
 ```bash
-sycmcli skill install --agent sealseek
-sycmcli stores add my-shop --mode host --platform sealseek --browser-profile my-shop
+sycmcli browser status --store my-shop
+sycmcli browser open --store my-shop
+sycmcli browser stop --store my-shop
+sycmcli doctor --json
 ```
 
-SealSeek opens `https://sycm.taobao.com/` in that native browser profile, executes the CLI-returned browser task, then passes the result to `sycmcli host complete`. Browser cookies and tokens never leave the browser.
-
-If the same machine already has that alias configured for Codex, keep the alias and add `--transport host --browser-profile <name>` to SealSeek data commands. The two Agents share the identity binding but use different browser transports.
+Legacy attached or Agent-native stores can be converted with `sycmcli stores migrate <alias> --mode managed`. Login is completed once in the new profile; cookies are not copied from the old browser.
 
 ## Examples
 

@@ -16,6 +16,15 @@ export function storesRoot(root = configRoot()) {
   return path.join(root, 'stores');
 }
 
+export function managedProfileDir(alias, root = configRoot(), env = process.env, platform = process.platform) {
+  validateAlias(alias);
+  if (platform === 'win32') {
+    const localRoot = env.LOCALAPPDATA || env.APPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    return path.join(localRoot, 'sycmcli', 'stores', alias, 'chrome-profile');
+  }
+  return path.join(storesRoot(root), alias, 'chrome-profile');
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   try { fs.chmodSync(dir, 0o700); } catch {}
@@ -116,6 +125,7 @@ export function resolveStore(flags, root = configRoot()) {
 export function publicStore(store, root = configRoot()) {
   return {
     alias: store.alias,
+    displayName: store.displayName,
     mode: store.mode,
     platform: store.platform,
     browserProfile: store.browserProfile,
