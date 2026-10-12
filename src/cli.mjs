@@ -5,13 +5,14 @@ import { parseArgs, requireFlag, integerFlag, booleanFlag } from './args.mjs';
 import { capabilities } from './capabilities.mjs';
 import { runAnalysis } from './analysis-runner.mjs';
 import { businessCapabilities, findBusinessCapability, mutationCapabilities } from './business-capabilities.mjs';
-import { browserDetails, browserIdentity, browserStatus, closeBrowser, ensureBrowser, focusBrowser, isCdpReady, labelStorePage } from './cdp.mjs';
+import { DMP_URL, browserDetails, browserIdentity, browserStatus, closeBrowser, dmpAuthState, ensureBrowser, focusBrowser, focusDmpPage, isCdpReady, labelStorePage } from './cdp.mjs';
 import { allocateManagedPort, configRoot, currentStore, ensureManagedPort, listStores, managedProfileDir, publicStore, readStore, resolveStore, setCurrentStore, updateStore, writeStore } from './config.mjs';
 import { CliError, invariant } from './errors.mjs';
 import { writeOutput } from './export.mjs';
 import { buildRegisteredHostScript, readJsonObject, runRegisteredOperation } from './data-runner.mjs';
 import { buildHostBrowserScript, completeHostResult, readHostPayload } from './host-browser.mjs';
 import { createMutationPlan, authorizeMutationPlan, readMutationPlan } from './mutation-plans.mjs';
+import { runDmpShopRead } from './dmp.mjs';
 import { getOperation, getService, listOperations } from './operation-registry.mjs';
 import { installSkill, skillSource, skillStatus } from './skill-manager.mjs';
 import { categorySearch, categoryTree, itemRank, keywordRank, mainCategory, priceSegments, wordCategory, wordOverview, wordRelated, wordTrend } from './sycm.mjs';
@@ -27,6 +28,8 @@ Usage:
   sycmcli browser list
   sycmcli browser open|status|focus|stop [--store <alias>]
   sycmcli auth login|status|bind [--store <alias>]
+  sycmcli dmp auth login|status [--store <alias>]
+  sycmcli dmp shop date-range|overview|categories|items|standard-categories|labels|indicators [--store <alias>]
   sycmcli category search --keyword <text> [--store <alias>]
   sycmcli category tree | main [--store <alias>]
   sycmcli item rank [--cate-id ID] [--rank-type gmv|growth|flow|add|newitm_ipv] [--top N]
@@ -49,6 +52,9 @@ Usage:
 Common data options:
   --store <alias> --date-type day|recent7|recent30 --date-range YYYY-MM-DD|YYYY-MM-DD
   --page N --page-size N --out <file> --format json|csv|xlsx --force
+
+DMP shop options:
+  --period 1|7|30 --benchmark 0|1 --page N --page-size N --type 1|2|4
 `;
 
 function output(value, flags = {}) {
@@ -195,6 +201,60 @@ async function handleBrowser(action, flags) {
   }
   if (action === 'stop') return output({ ok: true, store: publicStore(store), browser: await closeBrowser(store) });
   throw new CliError('UNKNOWN_COMMAND', `Unknown browser command: ${action || ''}`, { exitCode: 2 });
+}
+
+function dmpOptions(flags) {
+  return {
+    period: flags.period,
+    benchmark: flags.benchmark,
+    page: flags.page,
+    pageSize: flags['page-size'],
+    type: flags.type,
+    cateModel: flags['cate-model'],
+    filterModel: flags['filter-model'],
+    keyword: flags.keyword,
+    potentialLevels: flags['potential-levels'],
+    priceLevels: flags['price-levels'],
+    lifeStageCodes: flags['life-stage-codes'],
+    itemLabels: flags['item-labels'],
+    cate1Id: flags['cate1-id'],
+    cate2Id: flags['cate2-id'],
+    leafCateId: flags['leaf-cate-id'],
+    orderIndicator: flags['order-indicator'],
+    orderType: flags['order-type'],
+    promotionFilterType: flags['promotion-filter-type']
+  };
+}
+
+async function handleDmp(action, rest, flags) {
+  const selectedStore = resolveStore(flags);
+  if (action === 'auth') {
+    const authAction = rest[0];
+    if (selectedStore.mode === 'host') {
+      if (authAction === 'login') return output({ ok: true, actionRequired: 'browser.login', store: selectedStore.alias, platform: selectedStore.platform, browserProfile: selectedStore.browserProfile, url: DMP_URL, message: 'Open DMP in this store browser profile and complete first-party login or authorization.' });
+      if (authAction === 'status') return output({ ok: true, store: selectedStore.alias, authenticated: false, verification: 'run-a-dmp-read-in-the-host-browser-to-verify' });
+    }
+    if (authAction === 'login') {
+      const store = ensureManagedPort(selectedStore);
+      const focused = await focusDmpPage(store);
+      return output({ ok: true, store: store.alias, browser: { ...(await browserDetails(store)), profileDir: publicStore(store).profileDir || null }, page: focused.page, message: 'DMP is open in this store\'s full interactive Chrome. Complete login, slider, service authorization, or store authorization there, then run dmp auth status.' });
+    }
+    if (authAction === 'status') {
+      const meta = await authenticatedStore(flags);
+      const state = await dmpAuthState(meta.cdpUrl);
+      if (!state.authenticated) return output({ ok: true, store: meta.store.alias, authenticated: false, serviceAccess: false, auth: state, message: 'DMP authorization is incomplete. Run dmp auth login and complete the visible first-party flow.' });
+      const verification = await runDmpShopRead(meta.cdpUrl, 'date-range');
+      return output({ ok: true, store: meta.store.alias, authenticated: true, serviceAccess: true, auth: state, dateRange: verification.dateRange, identityVerification: state.identity?.stableId ? 'dmp-identity-visible-in-bound-store-profile' : 'bound-sycm-identity-and-same-store-profile' });
+    }
+    throw new CliError('UNKNOWN_COMMAND', `Unknown DMP auth command: ${authAction || ''}`, { exitCode: 2 });
+  }
+  invariant(action === 'shop', 'UNKNOWN_COMMAND', `Unknown DMP command: ${action || ''}`, { exitCode: 2 });
+  const resource = rest[0];
+  invariant(resource, 'MISSING_ARGUMENT', 'dmp shop requires a resource.', { exitCode: 2 });
+  invariant(selectedStore.mode !== 'host' && flags.transport !== 'host', 'CAPABILITY_UNAVAILABLE', 'Friendly DMP orchestration requires a sycmcli-managed store browser.', { hint: 'Migrate this store with sycmcli stores migrate <alias> --mode managed, or use registered raw reads in the host browser.' });
+  const meta = await authenticatedStore(flags);
+  const result = await runDmpShopRead(meta.cdpUrl, resource, dmpOptions(flags));
+  await finishData(result, flags, meta);
 }
 
 async function handleUpdate(action, flags) {
@@ -370,6 +430,7 @@ export async function main(argv) {
   if (command === 'stores') return handleStores(action, rest, flags);
   if (command === 'browser') return handleBrowser(action, flags);
   if (command === 'auth') return handleAuth(action, flags);
+  if (command === 'dmp') return handleDmp(action, rest, flags);
   if (command === 'skill') return handleSkill(action, flags);
   if (command === 'update') return handleUpdate(action, flags);
   if (command === 'data') return handleData(action, rest, flags);

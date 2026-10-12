@@ -28,6 +28,13 @@ test('host scripts are generated only for registered operations', () => {
   assert.throws(() => buildRegisteredHostScript('alimama.report', { csrfId: 'do-not-pass' }), /Do not pass browser credentials/);
 });
 
+test('DMP raw operations require dates where the service requires them', () => {
+  assert.throws(() => buildRegisteredHostScript('dmp.shop-overview', {}), /Missing operation parameters: endDate/);
+  const script = buildRegisteredHostScript('dmp.shop-overview', { endDate: '2026-10-11' });
+  assert.match(script, /dmp\.shop-overview/);
+  assert.match(script, /benchmark/);
+});
+
 test('nested browser credentials are redacted from operation results', () => {
   const result = redactSensitive({ data: { accessInfo: { csrfId: 'secret-value' }, token: 'token-value', _tb_token_: 'cookie-token', useful: 1 } });
   assert.equal(result.data.accessInfo.csrfId, '[REDACTED]');

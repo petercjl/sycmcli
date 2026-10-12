@@ -40,6 +40,16 @@
       "normalization": "The CLI wakes the selected profile, selects the service tab, executes only the packaged operation descriptor, and returns structured JSON."
     },
     {
+      "capability_id": "dmp.shop-insight-read",
+      "status": "tested",
+      "implementation": {"kind": "cli-managed", "capability": "DMP authorization gate and seven friendly whole-shop reads in the selected managed Chrome profile"},
+      "features": ["same-store-profile", "visible-user-authorization", "date-range-discovery", "serial-read", "credential-redaction", "null-preserving-result"],
+      "permissions": ["selected managed Chrome profile", "authorized DMP shop-insight session"],
+      "normalization": "The CLI verifies the bound Shengyicanmou identity, checks DMP session state, discovers maxDate, and returns normalized read-only DMP data without credentials.",
+      "tested_date": "2026-10-12",
+      "evidence": ["Codex verified an existing DMP session in the dedicated shanju profile, obtained the live 2026-04-14 through 2026-10-11 date range, and completed a seven-day whole-shop overview read without exporting browser credentials."]
+    },
+    {
       "capability_id": "business.mutation-plan-apply",
       "status": "implemented",
       "implementation": {"kind": "hybrid", "capability": "sycmcli plan authorization plus registered browser workflow"},

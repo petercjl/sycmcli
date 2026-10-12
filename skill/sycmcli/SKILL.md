@@ -13,6 +13,7 @@ Use the installed `sycmcli` command as the only business-logic runtime. The npm 
 2. Resolve the exact store with `sycmcli stores list`. Pass `--store <alias>` whenever the user names a store.
 3. Resolve the request with `sycmcli business list` or `business show <id>` when routing is uncertain.
 4. Follow the platform flow below to verify login and collect data.
+   - For DMP/达摩盘 requests, also run `sycmcli dmp auth status --store <alias>`. If authorization is incomplete, run `sycmcli dmp auth login --store <alias>`, pause for the user to complete the visible first-party flow, then check again.
 5. Use a friendly command when available; otherwise select a packaged operation from `sycmcli data operations` and run it with `data run`. Never construct an unregistered endpoint.
 6. Prefer JSON for analysis; use `--out` only for a requested export. Check identity, counts, pagination, warnings, and completeness.
 7. For a registered external write, create a mutation plan, show the preview and confirmation code to the user, then run `mutation apply` only after the user confirms that exact plan. Execute the returned Agent task in the bound browser and read back the changed object.
@@ -27,6 +28,8 @@ Codex and SealSeek use the same sycmcli-managed Google Chrome model. Each store 
 4. Run every later data or mutation command with the exact `--store <alias>`. sycmcli wakes the same profile automatically.
 5. If the session is logged out, stop and tell the user to finish login in the visible store browser. Retry only after the user confirms completion.
 6. If the live shop identity differs from the bound identity, stop on `STORE_IDENTITY_MISMATCH`; never switch, rebind, or continue implicitly.
+
+DMP authorization uses the same dedicated store profile but is verified separately from Shengyicanmou. `dmp auth login` opens the registered DMP shop-insight page in that visible browser. The user completes login, service authorization, shop authorization, slider, or risk verification manually. `dmp auth status` confirms the in-page DMP session and performs a read-only date-range access check. Credentials remain in Chrome; only status, safe identity hints when exposed by DMP, and the available date range are returned.
 
 Each managed browser uses the store display name in its Chrome profile and Shengyicanmou page title. Use `sycmcli browser list` to map open windows to aliases and `sycmcli browser focus --store <alias>` to wake and activate one exact window. The list result includes `headless` and `interactive`; user verification requires `headless=false` and `interactive=true`. Use `sycmcli stores label <alias> --display-name "<shop name>"` to label an older store.
 
@@ -55,6 +58,8 @@ Legacy `attached` and `host` stores remain readable for migration only. Convert 
 - Price bands: `sycmcli price segments`
 - Keyword rankings: `sycmcli keyword rank`
 - Search-word detail: `sycmcli word overview|trend|related|category --keyword <text>`
+- DMP authorization: `sycmcli dmp auth login|status --store <alias>`
+- DMP whole-shop insight: `sycmcli dmp shop date-range|overview|categories|items|standard-categories|labels|indicators --store <alias>`
 - All 37 business abilities: `sycmcli business list` and `sycmcli business show <capability-id>`
 - Registered raw reads: `sycmcli data operations` and `sycmcli data run <operation-id> --params-json <json-or-file>`
 - Deterministic local analysis: `sycmcli analyze run <capability-id> --input-json <json-or-file>`
@@ -65,6 +70,8 @@ Legacy `attached` and `host` stores remain readable for migration only. Convert 
 ## Pagination and completeness
 
 Item ranking accepts at most 20 rows per request. For Top N, pass `--top N`. Inspect `fetchedPages`, `stoppedBy`, `returnedCount`, `recordCount`, and `warnings`. Do not claim complete coverage when collection stopped early.
+
+DMP category and item reads accept `--page-size` from 1 to 100. They first obtain the service's current `maxDate`, then issue the requested read serially. Period is `1`, `7`, or `30`; default is `7`. Missing overview fields remain `null`, and an empty list remains an empty list. Never interpret missing DMP values as zero.
 
 ## Updates
 

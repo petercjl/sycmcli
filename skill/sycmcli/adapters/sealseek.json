@@ -36,6 +36,14 @@
       "normalization": "Run the shared data command directly. sycmcli wakes the profile, enforces the bound identity, and returns structured JSON. Authenticated SealSeek validation is pending."
     },
     {
+      "capability_id": "dmp.shop-insight-read",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "DMP authorization gate and seven friendly whole-shop reads in the selected managed Chrome profile"},
+      "features": ["same-store-profile", "visible-user-authorization", "date-range-discovery", "serial-read", "credential-redaction", "null-preserving-result"],
+      "permissions": ["selected managed Chrome profile", "authorized DMP shop-insight session"],
+      "normalization": "SealSeek invokes the same CLI commands and receives the shared normalized result. Authenticated SealSeek DMP validation remains pending."
+    },
+    {
       "capability_id": "business.mutation-plan-apply",
       "status": "implemented",
       "implementation": {"kind": "hybrid", "capability": "sycmcli plan authorization plus registered SealSeek browser workflow"},

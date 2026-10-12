@@ -94,13 +94,13 @@ const sycmCompetitionOperations = [
 operations.push(...sycmItemOperations, ...sycmCompetitionOperations);
 
 operations.push(
-  ['dmp.shop-standard-categories', 'dmp', 'GET', '/api/dmp/shop/std/cate', []],
-  ['dmp.shop-categories', 'dmp', 'GET', '/api/goods/cate/list', []],
+  ['dmp.shop-standard-categories', 'dmp', 'GET', '/api/dmp/shop/std/cate', [], { defaultParams: { cateModel: '2', filterModel: '0' } }],
+  ['dmp.shop-categories', 'dmp', 'GET', '/api/goods/cate/list', ['endDate'], { defaultParams: { period: '30', page: '1', pageSize: '10' } }],
   ['dmp.shop-date-range', 'dmp', 'GET', '/api/goods/shop/dateRange', []],
-  ['dmp.shop-item-indicators', 'dmp', 'GET', '/api/goods/shop/item/indicators', []],
-  ['dmp.shop-items', 'dmp', 'GET', '/api/goods/shop/item/list', []],
+  ['dmp.shop-item-indicators', 'dmp', 'GET', '/api/goods/shop/item/indicators', [], { defaultParams: { type: '1' } }],
+  ['dmp.shop-items', 'dmp', 'GET', '/api/goods/shop/item/list', ['endDate'], { defaultParams: { period: '30', page: '1', pageSize: '20' } }],
   ['dmp.shop-labels', 'dmp', 'GET', '/api/goods/shop/label/list', []],
-  ['dmp.shop-overview', 'dmp', 'GET', '/api/goods/shop/v3/overview', []]
+  ['dmp.shop-overview', 'dmp', 'GET', '/api/goods/shop/v3/overview', ['endDate'], { defaultParams: { period: '30', benchmark: '0' } }]
 );
 
 operations.push(

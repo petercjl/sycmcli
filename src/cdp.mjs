@@ -6,6 +6,7 @@ import { WebSocket } from 'ws';
 import { CliError } from './errors.mjs';
 
 const SYCM_URL = 'https://sycm.taobao.com/mc/mq/market_monitor.htm';
+export const DMP_URL = 'https://dmp.taobao.com/index_new.html#!/items/shop-insight';
 const ACTIVE_PORT_FILE = 'DevToolsActivePort';
 const LAUNCH_LOCK_FILE = '.sycmcli-launch.lock';
 const PREFERENCES_FILE = path.join('Default', 'Preferences');
@@ -236,6 +237,10 @@ export async function ensureSycmPage(cdpUrl) {
   return ensureServicePage(cdpUrl, { entryUrl: SYCM_URL, hosts: ['sycm.taobao.com'], label: 'Shengyicanmou' });
 }
 
+export async function ensureDmpPage(cdpUrl) {
+  return ensureServicePage(cdpUrl, { entryUrl: DMP_URL, hosts: ['dmp.taobao.com'], label: 'DMP' });
+}
+
 export async function ensureServicePage(cdpUrl, { entryUrl, hosts, matchPath, label = 'service' }) {
   const targets = await cdpJson(cdpUrl, '/json/list');
   const matches = (item) => {
@@ -371,6 +376,64 @@ export async function focusBrowser(store) {
   return browserDetails(store);
 }
 
+async function activateTarget(cdpUrl, target, label) {
+  const id = target.id || target.targetId;
+  if (!id) throw new CliError('CDP_TARGET_INVALID', `The ${label} page has no target ID.`);
+  let response;
+  try { response = await fetch(`${normalizeCdpUrl(cdpUrl)}/json/activate/${encodeURIComponent(id)}`); } catch (error) {
+    throw new CliError('BROWSER_UNAVAILABLE', `Cannot focus the ${label} page.`, { details: error.message });
+  }
+  if (!response.ok) throw new CliError('CDP_HTTP_ERROR', `Chrome could not activate the ${label} page (HTTP ${response.status}).`);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+}
+
+export async function focusDmpPage(store) {
+  const cdpUrl = await ensureBrowser(store);
+  const target = await ensureDmpPage(cdpUrl);
+  await activateTarget(cdpUrl, target, 'DMP');
+  return { cdpUrl, page: safePageUrl(target.url) || DMP_URL };
+}
+
+export async function dmpAuthState(cdpUrl) {
+  const expression = `(() => {
+    const tokenPresent = document.cookie.split(/\\s*;\\s*/).some((value) => value.startsWith('_tb_token_=') && value.length > 11);
+    let Magix = globalThis.Magix;
+    try {
+      if (!Magix?.config && globalThis.seajs?.cache) for (const item of Object.values(globalThis.seajs.cache)) {
+        const candidate = item?.exports?.default || item?.exports;
+        if (candidate?.config) { Magix = candidate; break; }
+      }
+    } catch {}
+    const user = Magix?.config?.('dmp-new.user') || Magix?.config?.('mx.user') || {};
+    const access = user.accessInfo && typeof user.accessInfo === 'object' ? user.accessInfo : {};
+    const csrfPresent = Boolean(user.csrfId || access.csrfId);
+    const first = (...values) => values.find((value) => value !== undefined && value !== null && value !== '') ?? null;
+    return {
+      host: location.host,
+      href: location.href,
+      tokenPresent,
+      csrfPresent,
+      identity: {
+        stableId: first(user.shopId, access.shopId, user.sellerId, access.sellerId, user.userId, access.userId),
+        displayName: first(user.shopName, user.shopTitle, access.shopName, user.nick, access.nick)
+      }
+    };
+  })()`;
+  const result = await evaluate(cdpUrl, expression, { page: { entryUrl: DMP_URL, hosts: ['dmp.taobao.com'], label: 'DMP' }, timeoutMs: 10000 });
+  const authenticated = result?.host === 'dmp.taobao.com' && result?.tokenPresent === true && result?.csrfPresent === true;
+  return {
+    authenticated,
+    tokenPresent: result?.tokenPresent === true,
+    csrfPresent: result?.csrfPresent === true,
+    identity: result?.identity?.stableId || result?.identity?.displayName ? {
+      stableId: result.identity.stableId === null ? null : String(result.identity.stableId),
+      displayName: result.identity.displayName === null ? null : String(result.identity.displayName)
+    } : null,
+    page: safePageUrl(result?.href),
+    verification: result?.identity?.stableId ? 'dmp-session-and-identity-visible' : 'dmp-session-in-bound-store-profile'
+  };
+}
+
 export async function browserIdentity(cdpUrl) {
   const expression = `(() => {
     const meta = globalThis.metaCacheData || globalThis.g_config || {};
@@ -394,9 +457,9 @@ export async function browserIdentity(cdpUrl) {
   return { ...identity, stableId: String(stableId), displayName: identity.runAsShopTitle || identity.runAsUserName || identity.mainUserName || identity.loginUserName || null };
 }
 
-export async function pageFetch(cdpUrl, request, { timeoutMs = 45000 } = {}) {
+export function buildPageFetchExpression(request) {
   const serialized = JSON.stringify(request);
-  const expression = `(async () => {
+  return `(async () => {
     const request = ${serialized};
     const allowedHosts = request.hosts || ['sycm.taobao.com'];
     if (!allowedHosts.includes(location.host)) return { __sycmcliError: { code: 'AUTH_REQUIRED', message: 'The active page is not on an authorized service host.' } };
@@ -415,7 +478,7 @@ export async function pageFetch(cdpUrl, request, { timeoutMs = 45000 } = {}) {
       const startedAt = Date.now();
       let dmpToken = ''; let csrfId = '';
       while (Date.now() - startedAt < 20000 && (!dmpToken || !csrfId)) {
-        dmpToken = ((document.cookie.split(/\s*;\s*/).find((value) => value.startsWith('_tb_token_=')) || '').slice(11));
+        dmpToken = ((document.cookie.split(/\\s*;\\s*/).find((value) => value.startsWith('_tb_token_=')) || '').slice(11));
         let Magix = globalThis.Magix;
         try {
           if (!Magix?.config && globalThis.seajs?.cache) for (const item of Object.values(globalThis.seajs.cache)) { const candidate = item?.exports?.default || item?.exports; if (candidate?.config) { Magix = candidate; break; } }
@@ -428,7 +491,7 @@ export async function pageFetch(cdpUrl, request, { timeoutMs = 45000 } = {}) {
       params.set('bizCode', 'dmp'); params.set('_tb_token_', dmpToken); params.set('_csrf', csrfId); params.set('csrfId', csrfId);
     }
     if (request.tokenStrategy === 'taobao-cookie') {
-      const taobaoToken = globalThis._tb_token_ || globalThis.window?._tb_token_ || ((document.cookie.match(/(?:^|;\s*)_tb_token_=([^;]+)/) || [])[1]) || '';
+      const taobaoToken = globalThis._tb_token_ || globalThis.window?._tb_token_ || ((document.cookie.match(/(?:^|;\\s*)_tb_token_=([^;]+)/) || [])[1]) || '';
       if (!taobaoToken) return { __sycmcliError: { code: 'AUTH_REQUIRED', message: 'Taobao seller login token is unavailable.' } };
       params.set('_tb_token_', taobaoToken);
     }
@@ -495,11 +558,20 @@ export async function pageFetch(cdpUrl, request, { timeoutMs = 45000 } = {}) {
     }
     return responseBody;
   })()`;
+}
+
+export async function pageFetch(cdpUrl, request, { timeoutMs = 45000 } = {}) {
+  const expression = buildPageFetchExpression(request);
   const page = request.entryUrl ? { entryUrl: request.entryUrl, hosts: request.hosts, matchPath: request.matchPath, label: request.service || 'service' } : undefined;
   const result = await evaluate(cdpUrl, expression, { timeoutMs, page });
   if (result?.__sycmcliError) {
     const { code, message, ...details } = result.__sycmcliError;
-    throw new CliError(code, message, { details, hint: code === 'AUTH_OR_RISK_CHALLENGE' ? 'Complete verification in the configured Chrome; sycmcli will not bypass it.' : undefined });
+    const hint = code === 'AUTH_OR_RISK_CHALLENGE'
+      ? 'Complete verification in the configured Chrome; sycmcli will not bypass it.'
+      : code === 'AUTH_REQUIRED' && request.service === 'dmp'
+        ? 'Run sycmcli dmp auth login --store <alias>, complete authorization in the visible browser, then retry.'
+        : undefined;
+    throw new CliError(code, message, { details, hint });
   }
   return result;
 }

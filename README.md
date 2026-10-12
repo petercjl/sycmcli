@@ -57,6 +57,26 @@ sycmcli data run competitor.search --store my-shop --params-json '{"keyWord":"å¥
 
 JSON is the default output. Use `--out result.csv`, `--out result.xlsx`, or `--out result.json` to export.
 
+### DMP whole-shop insight
+
+DMP authorization stays in the same dedicated profile as the selected store:
+
+```bash
+sycmcli dmp auth login --store my-shop
+# Complete any first-party authorization in the visible Chrome, then:
+sycmcli dmp auth status --store my-shop
+
+sycmcli dmp shop date-range --store my-shop
+sycmcli dmp shop overview --store my-shop --period 7
+sycmcli dmp shop categories --store my-shop --period 7 --page 1 --page-size 10
+sycmcli dmp shop items --store my-shop --period 7 --page 1 --page-size 20
+sycmcli dmp shop standard-categories --store my-shop
+sycmcli dmp shop labels --store my-shop
+sycmcli dmp shop indicators --store my-shop --type 1
+```
+
+The dated commands discover DMP's current `maxDate` before reading. Period accepts `1`, `7`, or `30` days. Session credentials remain inside Chrome and are never included in CLI output.
+
 Guarded write workflow:
 
 ```bash
