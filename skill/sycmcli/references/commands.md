@@ -56,6 +56,27 @@ sycmcli word category --store my-shop --keyword 奶锅 --page-size 20
 
 Automatic date types: `day`, `recent7`, and `recent30`. For another period, pass `--date-range START|END`.
 
+## DMP whole-shop insight
+
+Authorize DMP once per store profile, then use the seven friendly read commands:
+
+```bash
+sycmcli dmp auth login --store my-shop
+sycmcli dmp auth status --store my-shop
+
+sycmcli dmp shop date-range --store my-shop
+sycmcli dmp shop overview --store my-shop --period 7
+sycmcli dmp shop categories --store my-shop --period 7 --page 1 --page-size 10
+sycmcli dmp shop items --store my-shop --period 7 --page 1 --page-size 20
+sycmcli dmp shop standard-categories --store my-shop
+sycmcli dmp shop labels --store my-shop
+sycmcli dmp shop indicators --store my-shop --type 1
+```
+
+`dmp auth login` opens DMP in the same visible Chrome profile already bound to the selected store. The user completes all first-party authorization and verification. `dmp auth status` checks both the browser session and read-only service access without revealing credentials.
+
+Overview, category, and item commands automatically read DMP's current `maxDate` before querying. `--period` accepts `1`, `7`, or `30` and defaults to `7`. Category and item pages accept 1–100 rows. The main results are respectively the available date range, overview object, category list plus pager, item list plus pager, standard category tree, label list, and indicator list. Missing values are returned as `null` or empty lists, not invented zeroes.
+
 ## Business capability routing
 
 ```bash
@@ -72,7 +93,7 @@ sycmcli data operations
 sycmcli data run competitor.search --store my-shop --params-json '{"keyWord":"奶锅"}'
 sycmcli data run item.sale-overview --store my-shop --params-json ./item-query.json
 sycmcli data run alimama.campaigns --store my-shop --params-json ./campaign-query.json
-sycmcli data run dmp.shop-overview --store my-shop --params-json ./dmp-query.json
+sycmcli data run dmp.shop-overview --store my-shop --params-json '{"endDate":"2026-10-11","period":"7","benchmark":"0"}'
 ```
 
 `--params-json` accepts an inline JSON object or a JSON file. Use only operation IDs returned by `data operations`; arbitrary URLs are rejected. sycmcli wakes the selected store profile and executes the operation on its registered first-party page.

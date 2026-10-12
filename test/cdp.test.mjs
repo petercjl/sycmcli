@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { browserAutomationState, browserStatus, managedCdpUrl, parseDevToolsActivePort, storeBrowserLabel, storePageTitle, writeChromeProfileName } from '../src/cdp.mjs';
+import { browserAutomationState, browserStatus, buildPageFetchExpression, managedCdpUrl, parseDevToolsActivePort, storeBrowserLabel, storePageTitle, writeChromeProfileName } from '../src/cdp.mjs';
 
 test('parses Chrome dynamic DevTools endpoint', () => {
   assert.equal(parseDevToolsActivePort('45123\n/devtools/browser/example\n'), 'http://127.0.0.1:45123');
@@ -48,6 +48,12 @@ test('builds visible browser labels from display name and alias', () => {
   assert.equal(storeBrowserLabel({ alias: 'shop-a', displayName: '示例旗舰店' }), '示例旗舰店');
   assert.equal(storeBrowserLabel({ alias: 'shop-a' }), 'shop-a');
   assert.equal(storePageTitle({ alias: 'shop-a' }), '【shop-a】生意参谋');
+});
+
+test('preserves cookie whitespace regexes in browser-evaluated request code', () => {
+  const expression = buildPageFetchExpression({ service: 'dmp', tokenStrategy: 'dmp-magix', hosts: ['dmp.taobao.com'], params: {}, path: '/api/test' });
+  assert.match(expression, /split\(\/\\s\*;\\s\*\/\)/);
+  assert.doesNotMatch(expression, /split\(\/s\*;s\*\/\)/);
 });
 
 test('detects a headless CDP endpoint as non-interactive', async (t) => {

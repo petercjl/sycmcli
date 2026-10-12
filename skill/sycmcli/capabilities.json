@@ -43,6 +43,15 @@
       "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "selected-store-session"}
     },
     {
+      "id": "dmp.shop-insight-read",
+      "purpose": "Authorize and read the seven packaged DMP whole-shop insight resources through the selected store's dedicated browser profile.",
+      "required": true,
+      "required_features": ["same-store-profile", "visible-user-authorization", "date-range-discovery", "serial-read", "credential-redaction", "null-preserving-result"],
+      "input_fields": ["store_alias", "resource", "period", "page", "page_size", "filters"],
+      "output_fields": ["authenticated", "service_access", "date_range", "overview", "categories", "items", "labels", "indicators", "pager"],
+      "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "selected-store-dmp-session"}
+    },
+    {
       "id": "business.mutation-plan-apply",
       "purpose": "Plan and explicitly authorize one registered publishing or modification workflow for the bound store.",
       "required": false,
