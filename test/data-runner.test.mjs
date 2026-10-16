@@ -35,6 +35,28 @@ test('DMP raw operations require dates where the service requires them', () => {
   assert.match(script, /benchmark/);
 });
 
+test('shop performance reads use the first-party trade page and explicit trend inputs', () => {
+  const summary = getOperation('shop.trade-summary');
+  assert.equal(summary.service, 'sycm-trade');
+  assert.equal(getOperation('shop.trade-categories').path, '/bda/tradinganaly/overview/getCateTop.json');
+  assert.throws(() => buildRegisteredHostScript('shop.trade-trend', { dateRange: '2026-09-23|2026-09-29', indexs: 'payAmt' }), /categoryId/);
+  const script = buildRegisteredHostScript('shop.trade-trend', { categoryId: '123', dateRange: '2026-09-23|2026-09-29', indexs: 'payAmt' });
+  assert.match(script, /getTendency\.json/);
+});
+
+test('shop item ranking requires an explicit period', () => {
+  assert.throws(() => buildRegisteredHostScript('item.rank', {}), /dateRange/);
+  assert.match(buildRegisteredHostScript('item.rank', { dateRange: '2026-09-23|2026-09-29' }), /item\.rank/);
+});
+
+test('item detail reads declare browser-page defaults required by first-party endpoints', () => {
+  assert.deepEqual(getOperation('item.detail-overview').defaultParams, { dateType: 'day', byrType: 'all' });
+  assert.deepEqual(getOperation('item.diagnose-core').defaultParams, { dateType: 'recent30', crowdType: 'all' });
+  assert.deepEqual(getOperation('item.sale-overview').defaultParams, { dateType: 'day', device: '0' });
+  assert.equal(getOperation('item.flow-source-tree').defaultParams.activateBoost, 'sourceChannel');
+  assert.equal(getOperation('item.flow-source-tree-v3').defaultParams.device, '2');
+});
+
 test('nested browser credentials are redacted from operation results', () => {
   const result = redactSensitive({ data: { accessInfo: { csrfId: 'secret-value' }, token: 'token-value', _tb_token_: 'cookie-token', useful: 1 } });
   assert.equal(result.data.accessInfo.csrfId, '[REDACTED]');

@@ -50,6 +50,15 @@ Legacy attached or Agent-native stores can be converted with `sycmcli stores mig
 sycmcli category search --store my-shop --keyword 奶锅
 sycmcli item rank --store my-shop --cate-id 50012082 --rank-type gmv --top 100
 sycmcli word related --store my-shop --keyword 奶锅 --page-size 20
+sycmcli shop summary --store my-shop --date-type recent7
+sycmcli shop categories --store my-shop --date-type recent7
+sycmcli shop items --store my-shop --date-type recent7 --top 100
+sycmcli shop trend --store my-shop --category-id 50000000 --index-code payAmt --date-type recent7
+sycmcli shop-item overview --store my-shop --item-id 123456789 --date-type recent7
+sycmcli shop-item diagnose --store my-shop --item-id 123456789 --date-type recent30
+sycmcli shop-item detail --store my-shop --item-id 123456789 --date-type recent7
+sycmcli shop-item flow --store my-shop --item-id 123456789 --date-type recent7
+sycmcli shop-item gallery --store my-shop --item-id 123456789 --date-type recent7
 sycmcli business list
 sycmcli data operations
 sycmcli data run competitor.search --store my-shop --params-json '{"keyWord":"奶锅"}'

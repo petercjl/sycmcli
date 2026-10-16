@@ -15,6 +15,8 @@ import { createMutationPlan, authorizeMutationPlan, readMutationPlan } from './m
 import { runDmpShopRead } from './dmp.mjs';
 import { getOperation, getService, listOperations } from './operation-registry.mjs';
 import { installSkill, skillSource, skillStatus } from './skill-manager.mjs';
+import { shopCategories, shopItems, shopSummary, shopTrend } from './shop.mjs';
+import { shopItemDetail, shopItemDiagnose, shopItemFlow, shopItemGallery, shopItemOverview } from './shop-item.mjs';
 import { categorySearch, categoryTree, itemRank, keywordRank, mainCategory, priceSegments, wordCategory, wordOverview, wordRelated, wordTrend } from './sycm.mjs';
 import { autoUpdateIfNeeded, checkForUpdate, currentInstallPrefix, installUpdate, readUpdateState, writeUpdateState } from './update-manager.mjs';
 
@@ -30,11 +32,16 @@ Usage:
   sycmcli auth login|status|bind [--store <alias>]
   sycmcli dmp auth login|status [--store <alias>]
   sycmcli dmp shop date-range|overview|categories|items|standard-categories|labels|indicators [--store <alias>]
+  sycmcli shop summary [--date-type day|recent7|recent30] [--store <alias>]
+  sycmcli shop categories [--date-type day|recent7|recent30] [--store <alias>]
+  sycmcli shop items [--top N|--all] [--date-type day|recent7|recent30] [--store <alias>]
+  sycmcli shop trend --category-id <id> --index-code <metric> [--date-type recent7|recent30] [--store <alias>]
+  sycmcli shop-item overview|diagnose|detail|flow|gallery --item-id <id> [--date-type day|recent7|recent30] [--store <alias>]
   sycmcli category search --keyword <text> [--store <alias>]
   sycmcli category tree | main [--store <alias>]
   sycmcli item rank [--cate-id ID] [--rank-type gmv|growth|flow|add|newitm_ipv] [--top N]
   sycmcli price segments [--cate-id ID]
-  sycmcli keyword rank [--cate-id ID] [--keyword text]
+  sycmcli keyword rank [--cate-id ID] [--keyword text] [--top N]
   sycmcli word overview|trend|related|category --keyword <text>
   sycmcli data operations
   sycmcli data run <operation-id> --params-json <json-or-file> [--store <alias>]
@@ -82,10 +89,10 @@ async function authenticatedStore(flags, { bind = true } = {}) {
 
 function dataOptions(flags) {
   return {
-    cateId: flags['cate-id'], cateFlag: flags['cate-flag'], dateType: flags['date-type'], dateRange: flags['date-range'],
+    cateId: flags['cate-id'], cateFlag: flags['cate-flag'], itemId: flags['item-id'], dateType: flags['date-type'], dateRange: flags['date-range'],
     rankType: flags['rank-type'], priceSeg: flags['price-seg'], minPrice: flags['min-price'], maxPrice: flags['max-price'],
     sellerType: flags['seller-type'], keyword: flags.keyword, order: flags.order, orderBy: flags['order-by'],
-    indexCode: flags['index-code'], kwType: flags['kw-type'], device: flags.device, cycleFlag: flags['cycle-flag'],
+    indexCode: flags['index-code'], categoryId: flags['category-id'], diff: flags.diff, crowdType: flags['crowd-type'], byrType: flags['byr-type'], contentType: flags['content-type'], kwType: flags['kw-type'], device: flags.device, cycleFlag: flags['cycle-flag'], all: booleanFlag(flags, 'all'),
     page: integerFlag(flags, 'page', 1), pageSize: integerFlag(flags, 'page-size', 10, { min: 1, max: 1000 }),
     top: integerFlag(flags, 'top', 0, { min: 0, max: 10000 }), maxPages: integerFlag(flags, 'max-pages', undefined, { min: 1, max: 500 })
   };
@@ -94,7 +101,8 @@ function dataOptions(flags) {
 async function finishData(result, flags, meta) {
   const envelope = { ok: true, store: meta.store.alias, identity: identitySummary(meta.identity), fetchedAt: new Date().toISOString(), data: result };
   if (flags.out) {
-    const exported = await writeOutput(result, String(flags.out), { format: flags.format && String(flags.format), force: booleanFlag(flags, 'force') });
+    const exportValue = result && typeof result === 'object' && !Array.isArray(result) ? { ...result, store: meta.store.alias } : result;
+    const exported = await writeOutput(exportValue, String(flags.out), { format: flags.format && String(flags.format), force: booleanFlag(flags, 'force') });
     output({ ok: true, store: meta.store.alias, export: exported });
   } else output(envelope, flags);
 }
@@ -316,7 +324,9 @@ function operationFor(command, action) {
   return ({
     'category search': 'category-search', 'category tree': 'category-tree', 'category main': 'category-main',
     'item rank': 'item-rank', 'price segments': 'price-segments', 'keyword rank': 'keyword-rank',
-    'word overview': 'word-overview', 'word trend': 'word-trend', 'word related': 'word-related', 'word category': 'word-category'
+    'word overview': 'word-overview', 'word trend': 'word-trend', 'word related': 'word-related', 'word category': 'word-category',
+    'shop summary': 'shop-summary', 'shop categories': 'shop-categories', 'shop items': 'shop-items', 'shop trend': 'shop-trend',
+    'shop-item overview': 'shop-item-overview', 'shop-item diagnose': 'shop-item-diagnose', 'shop-item detail': 'shop-item-detail', 'shop-item flow': 'shop-item-flow', 'shop-item gallery': 'shop-item-gallery'
   })[key] || null;
 }
 
@@ -413,8 +423,9 @@ async function prepareHostTask(store, operation, flags) {
 export async function main(argv) {
   const { positionals, flags } = parseArgs(argv);
   const [command, action, ...rest] = positionals;
+  if (flags.version) { output({ name: '@petercjl/sycmcli', version: capabilities.version }); return; }
   if (!command || command === 'help' || flags.help) { process.stdout.write(HELP); return; }
-  if (command === 'version' || flags.version) { output({ name: '@petercjl/sycmcli', version: capabilities.version }); return; }
+  if (command === 'version') { output({ name: '@petercjl/sycmcli', version: capabilities.version }); return; }
   if (command !== 'update') {
     try {
       const update = await autoUpdateIfNeeded(capabilities.version);
@@ -445,7 +456,10 @@ export async function main(argv) {
   const operation = operationFor(command, action);
   if (!operation) throw new CliError('UNKNOWN_COMMAND', `Unknown command: ${[command, action].filter(Boolean).join(' ')}`, { exitCode: 2, hint: 'Run sycmcli help.' });
   const selectedStore = resolveStore(flags);
-  if (selectedStore.mode === 'host' || flags.transport === 'host') return prepareHostTask(selectedStore, operation, flags);
+  if (selectedStore.mode === 'host' || flags.transport === 'host') {
+    invariant(!['shop', 'shop-item'].includes(command), 'CAPABILITY_UNAVAILABLE', 'Friendly shop and shop-item commands require a sycmcli-managed store browser.', { hint: 'Use data run with a registered operation in a host browser, or migrate the store to managed mode.' });
+    return prepareHostTask(selectedStore, operation, flags);
+  }
 
   const meta = await authenticatedStore(flags);
   const options = dataOptions(flags);
@@ -460,6 +474,15 @@ export async function main(argv) {
   else if (command === 'word' && action === 'trend') result = await wordTrend(meta.cdpUrl, options);
   else if (command === 'word' && action === 'related') result = await wordRelated(meta.cdpUrl, options);
   else if (command === 'word' && action === 'category') result = await wordCategory(meta.cdpUrl, options);
+  else if (command === 'shop' && action === 'summary') result = await shopSummary(meta.cdpUrl, options);
+  else if (command === 'shop' && action === 'categories') result = await shopCategories(meta.cdpUrl, options);
+  else if (command === 'shop' && action === 'items') result = await shopItems(meta.cdpUrl, { ...options, pageSize: integerFlag(flags, 'page-size', 20, { min: 1, max: 20 }) });
+  else if (command === 'shop' && action === 'trend') result = await shopTrend(meta.cdpUrl, options);
+  else if (command === 'shop-item' && action === 'overview') result = await shopItemOverview(meta.cdpUrl, options);
+  else if (command === 'shop-item' && action === 'diagnose') result = await shopItemDiagnose(meta.cdpUrl, options);
+  else if (command === 'shop-item' && action === 'detail') result = await shopItemDetail(meta.cdpUrl, options);
+  else if (command === 'shop-item' && action === 'flow') result = await shopItemFlow(meta.cdpUrl, options);
+  else if (command === 'shop-item' && action === 'gallery') result = await shopItemGallery(meta.cdpUrl, options);
   else throw new CliError('UNKNOWN_COMMAND', `Unknown command: ${[command, action].filter(Boolean).join(' ')}`, { exitCode: 2, hint: 'Run sycmcli help.' });
   await finishData(result, flags, meta);
 }

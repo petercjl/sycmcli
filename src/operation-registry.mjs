@@ -21,15 +21,15 @@ const operations = [
 
 const sycmItemOperations = [
   ['item.category-search', '/cc/common/category/getStdCate.json', ['keyWord']],
-  ['item.diagnose-core', '/cc/diagnose/coreIndex.json', ['itemId', 'dateRange']],
+  ['item.diagnose-core', '/cc/diagnose/coreIndex.json', ['itemId', 'dateRange'], { defaultParams: { dateType: 'recent30', crowdType: 'all' } }],
   ['item.profile', '/cc/item/archive/profile.json', ['itemId']],
-  ['item.detail-list', '/cc/item/detail/analysis/list.json', ['itemId', 'dateRange']],
+  ['item.detail-list', '/cc/item/detail/analysis/list.json', ['itemId', 'dateRange'], { defaultParams: { dateType: 'day', byrType: 'all' } }],
   ['item.loss-overview', '/cc/item/detail/analysis/loss/overview.json', ['itemId', 'dateRange']],
-  ['item.detail-overview', '/cc/item/detail/analysis/overview.json', ['itemId', 'dateRange']],
-  ['item.main-pic-material', '/cc/item/detail/main/pic/analysis/material.json', ['itemId']],
+  ['item.detail-overview', '/cc/item/detail/analysis/overview.json', ['itemId', 'dateRange'], { defaultParams: { dateType: 'day', byrType: 'all' } }],
+  ['item.main-pic-material', '/cc/item/detail/main/pic/analysis/material.json', ['itemId', 'dateRange'], { defaultParams: { dateType: 'day', byrType: 'all', orderBy: 'itemExposeUv', order: 'desc', page: '1', pageSize: '10', contentType: '', indexCode: 'itemExposeUv,itemInteractUv,itemPayUv,itemLossUv,itemLossRate,itemPayConvertRate' } }],
   ['item.rank-live', '/cc/item/live/view/top.json', []],
   ['item.price-info', '/cc/item/price/info.json', ['itemId']],
-  ['item.sale-overview', '/cc/item/sale/overview.json', ['itemId', 'dateRange']],
+  ['item.sale-overview', '/cc/item/sale/overview.json', ['itemId', 'dateRange'], { defaultParams: { dateType: 'day', device: '0' } }],
   ['item.title-trend', '/cc/item/title/v2/diagnosis/trend.json', ['itemId', 'dateRange']],
   ['item.title-score', '/cc/item/title/v2/titleScore.json', ['itemId']],
   ['item.title-word-list', '/cc/item/title/v2/word/list.json', ['itemId', 'dateRange']],
@@ -37,7 +37,7 @@ const sycmItemOperations = [
   ['item.title-words', '/cc/item/v2/getTitleWords.json', ['itemId', 'dateRange']],
   ['item.dmp-product', '/cc/item/view/dmp/newproduct.json', ['itemId', 'dateRange']],
   ['item.dmp-product-top', '/cc/item/view/dmp/newproduct/top.json', ['itemIdList', 'dateRange']],
-  ['item.rank', '/cc/item/view/top.json', []],
+  ['item.rank', '/cc/item/view/top.json', ['dateRange'], { defaultParams: { dateType: 'recent7', page: '1', pageSize: '20' } }],
   ['item.sale-live-overview', '/cc/live/item/sale/overview.json', ['itemId']],
   ['item.sale-live-attributes', '/cc/live/item/sale/sku/attrDetail.json', ['itemId']],
   ['item.sale-live-skus', '/cc/live/v2/item/sale/sku/list.json', ['itemId']],
@@ -49,13 +49,13 @@ const sycmItemOperations = [
   ['item.refund-live-trend', '/csp/api/refund/item/live/trend.json', ['itemId']],
   ['item.refund-reasons', '/csp/api/refund/item/reason/list/v2.json', ['itemId', 'dateRange']],
   ['item.refund-live-warnings', '/csp/api/refund/item/warn/live.json', ['itemId']],
-  ['item.flow-source-tree', '/flow/item/source/tree/support.json', ['itemId', 'dateRange']],
-  ['item.flow-source-tree-v3', '/flow/v6/item/crowdtype/source/v3.json', ['itemId', 'dateRange']],
+  ['item.flow-source-tree', '/flow/item/source/tree/support.json', ['itemId', 'dateRange'], { defaultParams: { dateType: 'day', orderBy: 'uv', order: 'desc', page: '1', pageSize: '10', activateBoost: 'sourceChannel', crowdType: 'all', flowBizType: 'classic', indexCode: 'uv,cltItmCnt,cartByrCnt,payByrCnt' } }],
+  ['item.flow-source-tree-v3', '/flow/v6/item/crowdtype/source/v3.json', ['itemId', 'dateRange'], { defaultParams: { dateType: 'day', device: '2', belong: 'all', orderBy: 'uv', order: 'desc', page: '1', pageSize: '10', indexCode: 'uv,cartByrCnt,payByrCnt' } }],
   ['item.customer-loss-risk', '/mc/item/customers/lossrisk.json', ['itemId', 'dateRange']],
   ['item.loss-rank', '/mc/item/detail/analysis/loss/rank.json', ['itemId', 'dateRange']],
   ['item.price-band', '/mc/item/price/band/info/v3.json', ['itemId', 'dateRange']],
   ['item.aftersales-trend', '/qos/aftersales/item/trend.json', ['itemId', 'dateRange']]
-].map(([id, path, requiredParams]) => [id, 'sycm', 'GET', path, requiredParams]);
+].map(([id, path, requiredParams, options]) => [id, 'sycm', 'GET', path, requiredParams, options]);
 
 const sycmCompetitionOperations = [
   ['competition.active-status', '/mc/ci/free/active/status.json', []],
@@ -94,6 +94,12 @@ const sycmCompetitionOperations = [
 operations.push(...sycmItemOperations, ...sycmCompetitionOperations);
 
 operations.push(
+  ['shop.trade-summary', 'sycm-trade', 'GET', '/bda/tradinganaly/overview/get_summary.json', ['dateRange'], { defaultParams: { dateType: 'recent7', device: '0' } }],
+  ['shop.trade-categories', 'sycm-trade', 'GET', '/bda/tradinganaly/overview/getCateTop.json', ['dateRange'], { defaultParams: { dateType: 'recent7' } }],
+  ['shop.trade-trend', 'sycm-trade', 'GET', '/bda/tradinganaly/overview/getTendency.json', ['categoryId', 'dateRange', 'indexs'], { defaultParams: { dateType: 'recent7', device: '0', diff: '0' } }]
+);
+
+operations.push(
   ['dmp.shop-standard-categories', 'dmp', 'GET', '/api/dmp/shop/std/cate', [], { defaultParams: { cateModel: '2', filterModel: '0' } }],
   ['dmp.shop-categories', 'dmp', 'GET', '/api/goods/cate/list', ['endDate'], { defaultParams: { period: '30', page: '1', pageSize: '10' } }],
   ['dmp.shop-date-range', 'dmp', 'GET', '/api/goods/shop/dateRange', []],
@@ -118,6 +124,7 @@ operations.push(
 
 const services = {
   sycm: { origin: 'https://sycm.taobao.com', entryUrl: 'https://sycm.taobao.com/mc/mq/market_monitor.htm', hosts: ['sycm.taobao.com'], tokenStrategy: 'sycm-meta' },
+  'sycm-trade': { origin: 'https://sycm.taobao.com', entryUrl: 'https://sycm.taobao.com/fa/trade/detail?activeKey=overview', hosts: ['sycm.taobao.com'], tokenStrategy: 'sycm-meta' },
   alimama: { origin: 'https://one.alimama.com', entryUrl: 'https://one.alimama.com/', hosts: ['one.alimama.com'], tokenStrategy: 'alimama-access' },
   dmp: { origin: 'https://dmp.advgateway.taobao.com', entryUrl: 'https://dmp.taobao.com/index_new.html#!/items/shop-insight', hosts: ['dmp.taobao.com'], tokenStrategy: 'dmp-magix' },
   coupon: { origin: 'https://sale.taobao.com', entryUrl: 'https://myseller.taobao.com/home.htm/coupon_marketing/home?tab=fee', hosts: ['myseller.taobao.com', 'sale.taobao.com'], matchPath: '/home.htm/coupon_marketing/', tokenStrategy: 'taobao-cookie' }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { allocateManagedPort, ensureManagedPort, listStores, managedProfileDir, readStore, setCurrentStore, storeFile, updateStore, writeStore } from '../src/config.mjs';
+import { allocateManagedPort, ensureManagedPort, listStores, managedProfileDir, publicStore, readStore, setCurrentStore, storeFile, updateStore, writeStore } from '../src/config.mjs';
 
 test('store configuration is isolated, private, and updateable', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sycmcli-config-'));
@@ -20,6 +20,15 @@ test('store configuration is isolated, private, and updateable', (t) => {
 
 test('store alias cannot escape the config root', () => {
   assert.throws(() => writeStore('../escape', {}), /alias/);
+});
+
+test('public store metadata hides internal identity identifiers', () => {
+  const value = publicStore({ alias: 'alpha', displayName: 'Alpha', mode: 'managed', identity: { stableId: '123', runAsShopId: '456', mainUserId: '789', displayName: 'Alpha Shop' } });
+  assert.equal(value.authenticated, true);
+  assert.deepEqual(value.identity, { displayName: 'Alpha Shop' });
+  assert.equal(JSON.stringify(value).includes('123'), false);
+  assert.equal(JSON.stringify(value).includes('456'), false);
+  assert.equal(JSON.stringify(value).includes('789'), false);
 });
 
 test('managed profile location is per-store and uses local app data on Windows', () => {

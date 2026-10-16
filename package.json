@@ -1,6 +1,6 @@
 {
   "name": "@petercjl/sycmcli",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Taobao/Tmall business data CLI with multi-store browser authentication, guarded mutations, and a portable Agent skill",
   "type": "module",
   "bin": {
@@ -15,7 +15,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "SYCMCLI_DISABLE_AUTO_UPDATE=1 node --test",
+    "test": "node --test",
     "check": "node --check scripts/sycmcli.mjs && node --check src/*.mjs",
     "prepack": "npm run check && npm test"
   },

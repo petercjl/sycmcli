@@ -40,6 +40,14 @@ Managed stores always launch full interactive Chrome. `browser list` returns the
 | Word trend | `--keyword` | Time-series trend data |
 | Related words | `--keyword` | Related terms and metrics |
 | Word categories | `--keyword` | Category distribution for the term |
+| Shop summary | store; optional period | Core traffic, sales, conversion, and comparison metrics |
+| Shop trade categories | store; optional period | Ordered category IDs and names from trade analysis |
+| Shop item performance | store; optional period and collection bound | Item identities plus sales, traffic, conversion, search, engagement, and refund metrics |
+| Shop trend | store, category ID, one metric | One time-series metric for the selected period |
+| Shop item overview | store, item ID, period | Item sales, traffic, conversion, refund, and promotion metrics |
+| Shop item diagnosis | store, item ID, period | Platform diagnosis with daily-average and comparable-item fields |
+| Shop item detail | store, item ID, period | Detail-page funnel overview and module tree |
+| Shop item flow | store, item ID, period | Traffic-source tree and flattened channel rows |
 
 ```bash
 sycmcli category search --store my-shop --keyword 奶锅 --limit 20
@@ -47,14 +55,30 @@ sycmcli category tree --store my-shop
 sycmcli category main --store my-shop
 sycmcli item rank --store my-shop --cate-id 50012082 --rank-type gmv --date-type recent7 --top 100
 sycmcli price segments --store my-shop --cate-id 50012082 --date-type recent7
-sycmcli keyword rank --store my-shop --cate-id 50012082 --rank-type hot --page-size 20
+sycmcli keyword rank --store my-shop --cate-id 50012082 --rank-type hot --top 100 --page-size 20
 sycmcli word overview --store my-shop --keyword 奶锅
 sycmcli word trend --store my-shop --keyword 奶锅 --date-type recent7
 sycmcli word related --store my-shop --keyword 奶锅 --page-size 20
 sycmcli word category --store my-shop --keyword 奶锅 --page-size 20
+sycmcli shop summary --store my-shop --date-type recent7
+sycmcli shop categories --store my-shop --date-type recent7
+sycmcli shop items --store my-shop --date-type recent7 --top 100
+sycmcli shop items --store my-shop --date-type recent7 --all
+sycmcli shop trend --store my-shop --category-id 50000000 --index-code payAmt --date-type recent7
+sycmcli shop-item overview --store my-shop --item-id 123456789 --date-type recent7
+sycmcli shop-item diagnose --store my-shop --item-id 123456789 --date-type recent30
+sycmcli shop-item detail --store my-shop --item-id 123456789 --date-type recent7
+sycmcli shop-item flow --store my-shop --item-id 123456789 --date-type recent7
+sycmcli shop-item gallery --store my-shop --item-id 123456789 --date-type recent7
 ```
 
 Automatic date types: `day`, `recent7`, and `recent30`. For another period, pass `--date-range START|END`.
+
+`shop summary` reads the current shop's trade overview and preserves missing values as `null`. `shop categories` returns the ordered category list from the same trade-analysis page and period. `shop trend` accepts one `--index-code` per call and requires one ID from that list. Its `points` array contains explicit ISO dates when the returned value count matches the requested period; otherwise `points` is empty and raw `values` remains available. Do not reuse a market-ranking category ID.
+
+`shop items` returns at most 20 rows per page. `--top N` collects enough pages for a bounded ranking; `--all` continues until the platform `recordCount`, a short/empty page, or the safety page limit. Each item metric has `value`, `cycleCrc`, and `syncCrc`; do not rename the two comparison fields to a business period unless the platform contract identifies their baselines.
+
+`shop-item` reads one item selected from the current store. `overview`, `diagnose`, `detail`, `flow`, and `gallery` preserve the platform metric objects and explicit `null` values. `detail` performs its overview and module reads serially. `flow` returns the source tree and a flattened `channels` array. `gallery` returns paginated main-image and video materials with exposure, interaction, payment, loss, and conversion metrics. Seller and operator identity fields are excluded from these normalized business results.
 
 ## DMP whole-shop insight
 

@@ -99,7 +99,17 @@ function rankConfig(rankType) {
   return { path: '/mc/mq/mkt/item/offline/rank.json', indexCode: 'payByrCnt,uv', includeSort: false };
 }
 
-function normalizeItem(row) {
+export function normalizeItemRankFilters(options = {}) {
+  return {
+    priceSeg: ['all', 'customizePrice'].includes(options.priceSeg) ? '' : (options.priceSeg || ''),
+    minPrice: options.minPrice || '',
+    maxPrice: options.maxPrice || '',
+    sellerType: options.sellerType ?? '-1',
+    keyword: options.keyword || ''
+  };
+}
+
+export function normalizeItem(row) {
   const get = (key) => valueOf(row?.[key]);
   const item = row?.item || {};
   const shop = row?.shop || {};
@@ -110,12 +120,9 @@ function normalizeItem(row) {
     title: item.title ?? get('title') ?? null,
     pictUrl: item.pictUrl ?? get('pictUrl') ?? null,
     detailUrl: item.detailUrl ?? get('detailUrl') ?? null,
-    itemUserId: item.userId ?? get('userId') ?? get('itemUserId') ?? null,
-    sellerId: get('sellerId') ?? null,
     shopTitle: shop.title ?? get('shopTitle') ?? null,
     shopUrl: shop.shopUrl ?? get('shopUrl') ?? null,
     shopPictureUrl: shop.pictureUrl ?? get('shopPictureUrl') ?? null,
-    shopUserId: shop.userId ?? get('shopUserId') ?? null,
     b2CShop: shop.b2CShop ?? get('b2CShop') ?? null,
     coreKeywords: get('coreKeyWord') ?? get('coreKeywords') ?? null,
     payByrCnt: get('payByrCnt') ?? null,
@@ -140,6 +147,7 @@ export async function itemRank(cdpUrl, options = {}) {
   const pageSize = Math.min(requestedPageSize, MAX_PAGE_SIZE);
   const targetTopN = options.top || 0;
   const maxPages = options.maxPages || (targetTopN ? Math.ceil(targetTopN / pageSize) : 1);
+  const filters = normalizeItemRankFilters(options);
   const seen = new Set();
   const items = [];
   const warnings = [];
@@ -152,9 +160,9 @@ export async function itemRank(cdpUrl, options = {}) {
     const currentPage = page + offset;
     const params = {
       dateRange, dateType, pageSize, page: currentPage, cateId, rankType,
-      minPrice: options.minPrice || '', maxPrice: options.maxPrice || '',
-      priceSeg: ['all', 'customizePrice'].includes(options.priceSeg) ? '' : (options.priceSeg || ''),
-      sellerType: options.sellerType ?? '-1', keyWord: options.keyword || '', cateFlag: options.cateFlag ?? '2',
+      minPrice: filters.minPrice, maxPrice: filters.maxPrice,
+      priceSeg: filters.priceSeg,
+      sellerType: filters.sellerType, keyWord: filters.keyword, cateFlag: options.cateFlag ?? '2',
       indexCode: options.indexCode || config.indexCode, marketVersion: 'free'
     };
     if (config.includeSort || options.order !== undefined) params.order = options.order || '';
@@ -176,7 +184,7 @@ export async function itemRank(cdpUrl, options = {}) {
     if (stoppedBy === 'targetTopN') break;
     if (rows.length < pageSize) { stoppedBy = 'shortPage'; break; }
   }
-  return { cateId, dateRange, dateType, rankType, page, pageSize, requestedPageSize, targetTopN: targetTopN || null, maxPages, fetchedPages, stoppedBy, returnedCount: items.length, recordCount, duplicateCount, warnings, items };
+  return { cateId, dateRange, dateType, rankType, filters, page, pageSize, requestedPageSize, targetTopN: targetTopN || null, maxPages, fetchedPages, stoppedBy, returnedCount: items.length, recordCount, duplicateCount, warnings, items };
 }
 
 export async function priceSegments(cdpUrl, options = {}) {
@@ -200,13 +208,55 @@ function commonWordParams(options, keywordKey = 'keyword') {
   return { dateRange: options.dateRange || buildDateRange(dateType), dateType, device: options.device || '0', [keywordKey]: options.keyword, marketVersion: 'free' };
 }
 
+export function normalizeKeyword(row) {
+  return {
+    searchWord: valueOf(row?.searchWord),
+    rank: valueOf(row?.rn),
+    seIpvUvHits: valueOf(row?.seIpvUvHits),
+    seIpvUvHitsCrc: cycleOf(row?.seIpvUvHits),
+    clickUv: valueOf(row?.clickUv),
+    clickThroughRate: valueOf(row?.clickThroughRate),
+    payRate: valueOf(row?.payRate)
+  };
+}
+
 export async function keywordRank(cdpUrl, options = {}) {
   const cateId = await resolveCategory(cdpUrl, options.cateId);
-  const params = { ...commonWordParams(options, 'keyWord'), cateId, kwType: options.kwType || 'search', order: options.order || 'desc', orderBy: options.orderBy || 'seIpvUvHits', page: options.page || 1, pageSize: Math.min(options.pageSize || 10, MAX_PAGE_SIZE), rankType: options.rankType || 'hot' };
-  const body = await pageFetch(cdpUrl, { path: '/mc/mq/mkt/keyword/rank/pro.json', params });
-  const inner = body?.data || {};
-  const words = (inner.data || []).map((row) => ({ searchWord: valueOf(row.searchWord), rank: valueOf(row.rn), seIpvUvHits: valueOf(row.seIpvUvHits), seIpvUvHitsCrc: cycleOf(row.seIpvUvHits), clickUv: valueOf(row.clickUv), clickThroughRate: valueOf(row.clickThroughRate), payRate: valueOf(row.payRate) }));
-  return { cateId, ...params, recordCount: inner.recordCount || words.length, words };
+  const base = { ...commonWordParams(options, 'keyWord'), cateId, kwType: options.kwType || 'search', order: options.order || 'desc', orderBy: options.orderBy || 'seIpvUvHits', rankType: options.rankType || 'hot' };
+  const page = options.page || 1;
+  const requestedPageSize = options.pageSize || 10;
+  const pageSize = Math.min(requestedPageSize, MAX_PAGE_SIZE);
+  const targetTopN = options.top || 0;
+  const maxPages = options.maxPages || (targetTopN ? Math.ceil(targetTopN / pageSize) : 1);
+  const words = [];
+  const seen = new Set();
+  const warnings = [];
+  let recordCount = 0;
+  let duplicateCount = 0;
+  let fetchedPages = 0;
+  let stoppedBy = 'maxPages';
+  if (requestedPageSize > MAX_PAGE_SIZE) warnings.push(`page-size ${requestedPageSize} was capped at ${MAX_PAGE_SIZE}.`);
+  for (let offset = 0; offset < maxPages; offset += 1) {
+    const currentPage = page + offset;
+    const params = { ...base, page: currentPage, pageSize };
+    const body = await pageFetch(cdpUrl, { path: '/mc/mq/mkt/keyword/rank/pro.json', params });
+    fetchedPages += 1;
+    const inner = body?.data || {};
+    const rows = Array.isArray(inner) ? inner : (Array.isArray(inner.data) ? inner.data : []);
+    recordCount = Number(inner.recordCount || recordCount || rows.length);
+    if (!rows.length) { stoppedBy = 'emptyPage'; break; }
+    for (const row of rows) {
+      const normalized = normalizeKeyword(row);
+      const key = String(normalized.searchWord || `${currentPage}:${words.length}`);
+      if (seen.has(key)) { duplicateCount += 1; continue; }
+      seen.add(key);
+      words.push(normalized);
+      if (targetTopN && words.length >= targetTopN) { stoppedBy = 'targetTopN'; break; }
+    }
+    if (stoppedBy === 'targetTopN') break;
+    if (rows.length < pageSize) { stoppedBy = 'shortPage'; break; }
+  }
+  return { cateId, ...base, page, pageSize, requestedPageSize, targetTopN: targetTopN || null, maxPages, fetchedPages, stoppedBy, returnedCount: words.length, recordCount, duplicateCount, warnings, words };
 }
 
 export async function wordOverview(cdpUrl, options = {}) {

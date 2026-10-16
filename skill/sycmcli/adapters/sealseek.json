@@ -44,6 +44,38 @@
       "normalization": "SealSeek invokes the same CLI commands and receives the shared normalized result. Authenticated SealSeek DMP validation remains pending."
     },
     {
+      "capability_id": "sycm.shop.performance.read",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "Shared sycmcli shop summary and single-metric trend commands"},
+      "features": ["store-identity-binding", "date-range", "core-metrics", "comparison-rates", "trade-category-discovery", "single-metric-trend", "null-preserving-result"],
+      "permissions": ["selected managed Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "SealSeek invokes the same managed-browser CLI contract and receives the shared normalized JSON result. Authenticated SealSeek validation remains pending."
+    },
+    {
+      "capability_id": "sycm.shop.items.read",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "Shared paginated shop item performance command"},
+      "features": ["store-identity-binding", "date-range", "twenty-row-pagination", "top-n", "full-collection", "metric-comparisons", "null-preserving-result"],
+      "permissions": ["selected managed Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "Use the shared managed-browser item result and completeness contract. Live SealSeek validation remains pending."
+    },
+    {
+      "capability_id": "sycm.item.detail.read",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "Shared normalized one-item overview, diagnosis, detail, and traffic-source commands"},
+      "features": ["store-identity-binding", "item-identity", "date-range", "overview-metrics", "platform-diagnosis", "detail-module-tree", "traffic-source-tree", "null-preserving-result", "identity-field-omission"],
+      "permissions": ["selected managed Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "SealSeek invokes the same CLI contract. Live SealSeek validation remains pending."
+    },
+    {
+      "capability_id": "sycm.item.gallery.read",
+      "status": "implemented",
+      "implementation": {"kind": "cli-managed", "capability": "Shared normalized one-item main-image and video material performance command"},
+      "features": ["store-identity-binding", "item-identity", "date-range", "material-pagination", "image-video-type", "exposure-interaction-payment-metrics", "null-preserving-result", "identity-field-omission"],
+      "permissions": ["selected managed Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "SealSeek invokes the same CLI contract. Live SealSeek validation remains pending."
+    },
+    {
       "capability_id": "business.mutation-plan-apply",
       "status": "implemented",
       "implementation": {"kind": "hybrid", "capability": "sycmcli plan authorization plus registered SealSeek browser workflow"},

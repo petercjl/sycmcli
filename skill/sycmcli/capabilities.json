@@ -52,6 +52,42 @@
       "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "selected-store-dmp-session"}
     },
     {
+      "id": "sycm.shop.performance.read",
+      "purpose": "Read the selected shop's first-party trade summary and one-metric time series from Shengyicanmou.",
+      "required": false,
+      "required_features": ["store-identity-binding", "date-range", "core-metrics", "comparison-rates", "trade-category-discovery", "single-metric-trend", "null-preserving-result"],
+      "input_fields": ["store_alias", "date_type", "date_range", "category_id", "index_code"],
+      "output_fields": ["store", "identity", "date_range", "metrics", "comparisons", "categories", "series", "points"],
+      "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "selected-store-session"}
+    },
+    {
+      "id": "sycm.shop.items.read",
+      "purpose": "Read normalized item-level sales, traffic, conversion, engagement, search, and refund metrics for the selected shop.",
+      "required": false,
+      "required_features": ["store-identity-binding", "date-range", "twenty-row-pagination", "top-n", "full-collection", "metric-comparisons", "null-preserving-result"],
+      "input_fields": ["store_alias", "date_type", "date_range", "page", "page_size", "top", "all"],
+      "output_fields": ["store", "identity", "date_range", "record_count", "returned_count", "fetched_pages", "stopped_by", "items"],
+      "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "selected-store-session"}
+    },
+    {
+      "id": "sycm.item.detail.read",
+      "purpose": "Read one selected shop item's normalized overview, diagnosis, detail-page funnel, module tree, and traffic-source tree.",
+      "required": false,
+      "required_features": ["store-identity-binding", "item-identity", "date-range", "overview-metrics", "platform-diagnosis", "detail-module-tree", "traffic-source-tree", "null-preserving-result", "identity-field-omission"],
+      "input_fields": ["store_alias", "item_id", "date_type", "date_range", "crowd_type", "buyer_type", "device"],
+      "output_fields": ["store", "identity", "item_id", "date_range", "metrics", "focus_metric", "overview", "modules", "tree", "channels"],
+      "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "selected-store-session"}
+    },
+    {
+      "id": "sycm.item.gallery.read",
+      "purpose": "Read one selected shop item's main-image and video material performance from Shengyicanmou.",
+      "required": false,
+      "required_features": ["store-identity-binding", "item-identity", "date-range", "material-pagination", "image-video-type", "exposure-interaction-payment-metrics", "null-preserving-result", "identity-field-omission"],
+      "input_fields": ["store_alias", "item_id", "date_type", "date_range", "buyer_type", "content_type", "page", "page_size", "order_by", "order"],
+      "output_fields": ["store", "identity", "item_id", "date_range", "record_count", "materials"],
+      "side_effects": {"external_mutation": false, "may_cost_money": false, "authorization": "selected-store-session"}
+    },
+    {
       "id": "business.mutation-plan-apply",
       "purpose": "Plan and explicitly authorize one registered publishing or modification workflow for the bound store.",
       "required": false,

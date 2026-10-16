@@ -58,6 +58,13 @@ Legacy `attached` and `host` stores remain readable for migration only. Convert 
 - Price bands: `sycmcli price segments`
 - Keyword rankings: `sycmcli keyword rank`
 - Search-word detail: `sycmcli word overview|trend|related|category --keyword <text>`
+- Shop performance summary: `sycmcli shop summary --store <alias> --date-type day|recent7|recent30`
+- Shop trade categories: `sycmcli shop categories --store <alias> --date-type day|recent7|recent30`
+- Shop item performance: `sycmcli shop items --store <alias> --date-type day|recent7|recent30 [--top N|--all]`
+- Shop performance trend: `sycmcli shop trend --store <alias> --category-id <id> --index-code <metric> --date-type recent7|recent30`
+- Shop item overview and diagnosis: `sycmcli shop-item overview|diagnose --store <alias> --item-id <id> --date-type day|recent7|recent30`
+- Shop item detail modules and traffic sources: `sycmcli shop-item detail|flow --store <alias> --item-id <id> --date-type day|recent7|recent30`
+- Shop item image/video material performance: `sycmcli shop-item gallery --store <alias> --item-id <id> --date-type day|recent7|recent30`
 - DMP authorization: `sycmcli dmp auth login|status --store <alias>`
 - DMP whole-shop insight: `sycmcli dmp shop date-range|overview|categories|items|standard-categories|labels|indicators --store <alias>`
 - All 37 business abilities: `sycmcli business list` and `sycmcli business show <capability-id>`
@@ -69,9 +76,15 @@ Legacy `attached` and `host` stores remain readable for migration only. Convert 
 
 ## Pagination and completeness
 
-Item ranking accepts at most 20 rows per request. For Top N, pass `--top N`. Inspect `fetchedPages`, `stoppedBy`, `returnedCount`, `recordCount`, and `warnings`. Do not claim complete coverage when collection stopped early.
+Item and keyword rankings accept at most 20 rows per request. For Top N, pass `--top N`. Inspect `fetchedPages`, `stoppedBy`, `returnedCount`, `recordCount`, `duplicateCount`, and `warnings`. Do not claim complete coverage when collection stopped early.
 
 DMP category and item reads accept `--page-size` from 1 to 100. They first obtain the service's current `maxDate`, then issue the requested read serially. Period is `1`, `7`, or `30`; default is `7`. Missing overview fields remain `null`, and an empty list remains an empty list. Never interpret missing DMP values as zero.
+
+Shop summary returns the selected period, core sales/traffic/conversion metrics, and platform comparison rates. Shop categories returns the current period's ordered trade-category list from the same page. Shop trend accepts exactly one metric per call and a category ID from that list; it returns explicit date/value points when the period length matches the platform series. Never substitute a market category or guess an ID. Missing fields remain `null`.
+
+Shop items returns normalized item identity plus sales, traffic, conversion, search, engagement, and refund metric objects. Each metric preserves `value`, `cycleCrc`, and `syncCrc`. One page contains at most 20 items; use `--top N` for a bounded ranking or `--all` when the application genuinely needs the complete shop inventory. Check `recordCount`, `returnedCount`, `fetchedPages`, and `stoppedBy` before claiming completeness.
+
+Shop-item commands read one selected item. `overview` returns sales, traffic, conversion, engagement, refund, and promotion metric objects; `diagnose` returns the platform-selected focus metric plus daily-average and comparable-item fields; `detail` returns the detail-page funnel overview and module tree; `flow` returns both the platform channel tree and a flattened channel list; `gallery` returns main-image and video material performance. Missing values remain `null`, and seller/operator identity fields are omitted from the normalized business result.
 
 ## Updates
 

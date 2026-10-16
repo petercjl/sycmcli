@@ -167,7 +167,8 @@ export function publicStore(store, root = configRoot()) {
     cdpUrl: store.cdpUrl,
     port: store.port,
     profileDir: store.profileDir ? path.relative(root, store.profileDir) || '.' : undefined,
-    identity: store.identity || null,
+    authenticated: Boolean(store.identity),
+    identity: store.identity ? { displayName: store.identity.displayName || store.identity.runAsShopTitle || null } : null,
     createdAt: store.createdAt,
     updatedAt: store.updatedAt
   };

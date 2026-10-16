@@ -11,7 +11,7 @@
       "permissions": ["local sycmcli execution"],
       "normalization": "Parse sycmcli JSON stdout and structured JSON stderr without exposing browser credentials.",
       "tested_date": "2026-09-30",
-      "evidence": ["Codex executed category, item-rank, price-segment, keyword-rank, related-word, and word-category commands against the authorized 9223 Chrome session."]
+      "evidence": ["Codex executed category, item-rank, price-segment, paginated keyword-rank, related-word, and word-category commands against an authorized managed Chrome session; a live Top 35 keyword read completed in two pages with no duplicates."]
     },
     {
       "capability_id": "browser.session-user-login",
@@ -48,6 +48,46 @@
       "normalization": "The CLI verifies the bound Shengyicanmou identity, checks DMP session state, discovers maxDate, and returns normalized read-only DMP data without credentials.",
       "tested_date": "2026-10-12",
       "evidence": ["Codex verified an existing DMP session in the dedicated shanju profile, obtained the live 2026-04-14 through 2026-10-11 date range, and completed a seven-day whole-shop overview read without exporting browser credentials."]
+    },
+    {
+      "capability_id": "sycm.shop.performance.read",
+      "status": "tested",
+      "implementation": {"kind": "cli-managed", "capability": "Shengyicanmou shop summary and single-metric trend reads in the selected managed Chrome profile"},
+      "features": ["store-identity-binding", "date-range", "core-metrics", "comparison-rates", "trade-category-discovery", "single-metric-trend", "null-preserving-result"],
+      "permissions": ["selected managed Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "Return the bound store identity, requested period, normalized metrics, comparisons, and optional trend without exposing browser credentials.",
+      "tested_date": "2026-10-14",
+      "evidence": ["Codex completed live seven-day shop summary and payAmt trend reads for a bound managed store; all 64 package tests also passed."]
+    },
+    {
+      "capability_id": "sycm.shop.items.read",
+      "status": "tested",
+      "implementation": {"kind": "cli-managed", "capability": "Paginated Shengyicanmou item performance reads in the selected managed Chrome profile"},
+      "features": ["store-identity-binding", "date-range", "twenty-row-pagination", "top-n", "full-collection", "metric-comparisons", "null-preserving-result"],
+      "permissions": ["selected managed Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "Return item identity and metric objects with platform value/cycleCrc/syncCrc fields; expose explicit completeness metadata.",
+      "tested_date": "2026-10-14",
+      "evidence": ["Codex completed a live multi-page Top 25 item read for a bound store and verified pagination, normalization, and record-count metadata."]
+    },
+    {
+      "capability_id": "sycm.item.detail.read",
+      "status": "tested",
+      "implementation": {"kind": "cli-managed", "capability": "Normalized one-item overview, diagnosis, detail funnel, module tree, and traffic-source reads"},
+      "features": ["store-identity-binding", "item-identity", "date-range", "overview-metrics", "platform-diagnosis", "detail-module-tree", "traffic-source-tree", "null-preserving-result", "identity-field-omission"],
+      "permissions": ["selected managed Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "Preserve platform metric objects and nulls, expose tree and flat channel forms, and omit seller/operator identity fields from business data.",
+      "tested_date": "2026-10-14",
+      "evidence": ["Codex completed live reads for item overview, diagnosis, detail overview/modules, and both traffic-source contracts using a bound managed store."]
+    },
+    {
+      "capability_id": "sycm.item.gallery.read",
+      "status": "tested",
+      "implementation": {"kind": "cli-managed", "capability": "Normalized one-item main-image and video material performance read"},
+      "features": ["store-identity-binding", "item-identity", "date-range", "material-pagination", "image-video-type", "exposure-interaction-payment-metrics", "null-preserving-result", "identity-field-omission"],
+      "permissions": ["selected managed Chrome profile", "authorized Shengyicanmou session"],
+      "normalization": "Preserve material metadata and platform metric objects while omitting seller/operator identity fields.",
+      "tested_date": "2026-10-14",
+      "evidence": ["Codex completed a live ten-material main-image read for a bound managed store after applying the first-party date, buyer, sorting, pagination, and metric defaults."]
     },
     {
       "capability_id": "business.mutation-plan-apply",
