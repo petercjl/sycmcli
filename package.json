@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "test": "node --test",
-    "check": "node --check scripts/sycmcli.mjs && node --check src/*.mjs",
+    "check": "node scripts/check-syntax.mjs",
     "prepack": "npm run check && npm test"
   },
   "keywords": [
