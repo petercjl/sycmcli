@@ -6,7 +6,7 @@ import { skillSource, skillStatus } from '../src/skill-manager.mjs';
 
 test('bundled skill is canonical and contains no placeholders', () => {
   const source = skillSource();
-  const text = fs.readFileSync(path.join(source, 'SKILL.md'), 'utf8');
+  const text = fs.readFileSync(path.join(source, 'SKILL.md'), 'utf8').replaceAll('\r\n', '\n');
   assert.match(text, /^---\nname: sycmcli\n/);
   assert.doesNotMatch(text, /\[TODO/);
   assert.equal(skillStatus('codex').source, source);

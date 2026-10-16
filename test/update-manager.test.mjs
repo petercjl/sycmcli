@@ -18,7 +18,7 @@ test('update state defaults to automatic daily checks and persists settings', ()
   const next = writeUpdateState({ autoUpdate: false, intervalHours: 12 }, root);
   assert.equal(next.autoUpdate, false);
   assert.equal(readUpdateState(root).intervalHours, 12);
-  assert.equal(fs.statSync(path.join(root, 'update.json')).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(root, 'update.json')).mode & 0o777, 0o600);
 });
 
 test('automatic install ignores agent-specific npm prefix overrides', () => {

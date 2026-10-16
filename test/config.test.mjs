@@ -10,7 +10,7 @@ test('store configuration is isolated, private, and updateable', (t) => {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const store = writeStore('alpha', { mode: 'attached', cdpUrl: 'http://127.0.0.1:9223', createdAt: 'now' }, root);
   assert.equal(store.alias, 'alpha');
-  assert.equal(fs.statSync(storeFile('alpha', root)).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal(fs.statSync(storeFile('alpha', root)).mode & 0o777, 0o600);
   assert.throws(() => writeStore('alpha', {}, root), /already exists/);
   updateStore('alpha', { identity: { stableId: '123' } }, root);
   assert.equal(readStore('alpha', root).identity.stableId, '123');
